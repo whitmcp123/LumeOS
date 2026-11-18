@@ -1,0 +1,15 @@
+#!/bin/sh
+# Liga o instalador de apps do primeiro boot, o earlyoom e desliga servicos de rede que o desktop nao usa.
+set -u
+
+chmod 0755 /usr/local/bin/lume-firstboot /usr/local/bin/lume-gpu-setup 2>/dev/null || true
+
+systemctl enable lume-firstboot.service || echo "AVISO: nao foi possivel habilitar lume-firstboot" >&2
+systemctl enable earlyoom.service 2>/dev/null || true
+systemctl enable power-profiles-daemon.service 2>/dev/null || true
+
+for unit in ModemManager.service avahi-daemon.service avahi-daemon.socket; do
+    systemctl disable "${unit}" 2>/dev/null || true
+done
+
+exit 0

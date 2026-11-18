@@ -1,0 +1,9 @@
+#!/bin/sh
+# Desliga tarefas em segundo plano que consomem RAM e disco sem ajudar no uso diario.
+set -u
+
+for unit in apt-daily.timer apt-daily-upgrade.timer man-db.timer NetworkManager-wait-online.service; do
+    systemctl disable "${unit}" 2>/dev/null || true
+done
+
+exit 0

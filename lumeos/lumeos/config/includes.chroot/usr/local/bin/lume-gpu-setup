@@ -1,0 +1,16 @@
+#!/bin/sh
+# Instala o driver proprietario da NVIDIA se houver placa NVIDIA. AMD e Intel ja usam o Mesa incluido.
+set -eu
+
+if [ "$(id -u)" -ne 0 ]; then
+    echo "Execute com sudo: sudo lume-gpu-setup" >&2
+    exit 1
+fi
+
+if lspci | grep -qi 'nvidia'; then
+    apt-get update
+    apt-get install -y linux-headers-amd64 nvidia-driver firmware-misc-nonfree
+    echo "Driver NVIDIA instalado. Reinicie o computador para ativar."
+else
+    echo "Nenhuma placa NVIDIA detectada. AMD e Intel usam o driver Mesa que ja vem no sistema."
+fi

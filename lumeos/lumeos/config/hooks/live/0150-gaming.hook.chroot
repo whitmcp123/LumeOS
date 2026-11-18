@@ -1,0 +1,18 @@
+#!/bin/sh
+# Habilita 32 bits e instala Steam (Proton) e as bibliotecas de video e Wine de 32 bits.
+# Se algo falhar, a ISO continua sendo gerada; o primeiro boot instala Steam por Flatpak como alternativa.
+set -u
+
+dpkg --add-architecture i386
+apt-get update || echo "AVISO: apt update falhou apos habilitar i386" >&2
+
+echo "steam steam/question select I AGREE" | debconf-set-selections
+echo "steam steam/license note " | debconf-set-selections
+
+DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    steam-installer \
+    mesa-vulkan-drivers:i386 libgl1-mesa-dri:i386 libglx-mesa0:i386 libvulkan1:i386 \
+    wine32:i386 \
+    || echo "AVISO: instalacao do Steam e das bibliotecas de 32 bits falhou" >&2
+
+exit 0

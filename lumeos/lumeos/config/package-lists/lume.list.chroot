@@ -1,0 +1,53 @@
+# Sistema base e kernel
+linux-image-amd64
+firmware-linux
+firmware-misc-nonfree
+intel-microcode
+amd64-microcode
+sudo
+systemd-zram-generator
+
+# Desktop leve (XFCE) e tela de login
+xfce4
+xfce4-whiskermenu-plugin
+xfce4-pulseaudio-plugin
+xfce4-notifyd
+xfce4-terminal
+xfce4-screenshooter
+thunar-volman
+lightdm
+lightdm-gtk-greeter
+
+# Rede e som
+network-manager
+network-manager-gnome
+pipewire
+pipewire-pulse
+wireplumber
+pavucontrol
+
+# Aplicativos essenciais
+firefox-esr
+mousepad
+ristretto
+file-roller
+gvfs
+gvfs-backends
+
+# Fontes
+fonts-inter
+fonts-noto-core
+fonts-noto-color-emoji
+
+# Compatibilidade com programas do Windows
+wine
+
+# Instalador grafico
+calamares
+calamares-settings-debian
+
+# Dependencias para instalar o tema Fluent dentro do chroot (usadas pelo hook)
+git
+ca-certificates
+sassc
+gtk2-engines-murrine
