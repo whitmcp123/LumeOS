@@ -1,0 +1,48 @@
+
+name: LumeOS
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "lumeos/**"
+      - ".github/workflows/main.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Construir LumeOS
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+
+    steps:
+      - name: Baixar arquivos do projeto
+        uses: actions/checkout@v4
+
+      - name: Preparar ambiente
+        run: |
+          sudo apt-get update
+
+      - name: Construir ISO
+        working-directory: lumeos
+        run: |
+          chmod +x build.sh
+          sudo ./build.sh 2>&1 | tee build.log
+
+      - name: Organizar arquivos
+        if: always()
+        run: |
+          mkdir -p resultado
+          find lumeos -type f -name "*.iso" -exec cp {} resultado/ \;
+          cp lumeos/build.log resultado/ 2>/dev/null || true
+
+      - name: Disponibilizar ISO e logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lumeos-iso
+          path: resultado/
+          if-no-files-found: warn
+          retention-days: 7
