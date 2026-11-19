@@ -1,0 +1,347 @@
+#!/usr/bin/python3
+"""lume-widgets: relogio e data soltos na area de trabalho, no estilo Rainmeter.
+
+Um processo, varias janelas transparentes (uma por widget). A configuracao fica em
+~/.config/lume/widgets.json e e relida na hora quando o lume-settings salva.
+Transparencia exige o compositor do xfwm4 ligado (ja vem ligado na LumeOS).
+"""
+import locale
+import os
+import signal
+import subprocess
+import sys
+import time
+
+sys.path.insert(0, "/usr/local/lib/lume")
+import lumecfg as C  # noqa: E402
+
+import gi  # noqa: E402
+
+gi.require_version("Gtk", "3.0")
+gi.require_version("Gdk", "3.0")
+gi.require_version("Pango", "1.0")
+gi.require_version("PangoCairo", "1.0")
+from gi.repository import Gdk, Gio, GLib, Gtk, Pango, PangoCairo  # noqa: E402
+import cairo  # noqa: E402
+
+try:
+    locale.setlocale(locale.LC_ALL, "")  # nomes de dias e meses no idioma do sistema
+except locale.Error:
+    pass
+
+PAD = 12  # margem em volta do texto, para a sombra nao ser cortada
+DRAG_SETTLE_MS = 400
+
+
+def primary_geometry():
+    display = Gdk.Display.get_default()
+    mon = display.get_primary_monitor() or display.get_monitor(0)
+    g = mon.get_geometry()
+    return g.x, g.y, g.width, g.height
+
+
+class WidgetWindow(Gtk.Window):
+    def __init__(self, manager, wid):
+        super().__init__(type=Gtk.WindowType.TOPLEVEL)
+        self.manager = manager
+        self.wid = wid
+        self.conf = None
+        self.text = ""
+        self.size = (0, 0)
+        self.px = None
+        self.py = None
+        self.dragging = False
+        self.settle_id = 0
+
+        self.set_title("Lume widget %s" % wid)
+        self.set_decorated(False)
+        self.set_skip_taskbar_hint(True)
+        self.set_skip_pager_hint(True)
+        self.set_focus_on_map(False)
+        self.set_accept_focus(False)
+        self.set_keep_below(True)
+        self.stick()
+        self.set_app_paintable(True)
+        visual = self.get_screen().get_rgba_visual()
+        if visual is not None:
+            self.set_visual(visual)
+        else:
+            print("lume-widgets: sem visual RGBA; o fundo do widget vai aparecer preto", file=sys.stderr)
+        self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+        self.connect("draw", self.on_draw)
+        self.connect("button-press-event", self.on_button)
+        self.connect("configure-event", self.on_configure)
+        self.connect("map-event", lambda *_: self.apply_lock())
+
+    # ---- texto e tamanho ----
+
+    def _layout(self, cr):
+        layout = PangoCairo.create_layout(cr)
+        layout.set_font_description(Pango.FontDescription.from_string(self.conf["font"]))
+        layout.set_text(self.text, -1)
+        return layout
+
+    def measure(self):
+        surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, 1, 1)
+        w, h = self._layout(cairo.Context(surf)).get_pixel_size()
+        return w + 2 * PAD, h + 2 * PAD
+
+    def refresh(self):
+        """Recalcula texto e tamanho; redesenha so se algo mudou."""
+        if self.conf is None:
+            return
+        text = C.render_text(self.conf["format"], self.conf["case"])
+        changed = text != self.text
+        self.text = text
+        size = self.measure()
+        if size != self.size:
+            self.size = size
+            self.set_size_request(*size)
+            self.resize(*size)
+            self.reposition(keep=True)
+            GLib.idle_add(self.apply_lock)
+            changed = True
+        if changed:
+            self.queue_draw()
+
+    def apply(self, conf):
+        first = self.conf is None
+        pos_changed = first or (conf["x"], conf["y"]) != (self.conf["x"], self.conf["y"])
+        self.conf = conf
+        self.refresh()
+        if pos_changed and not self.dragging:
+            self.reposition(keep=False)
+        if not self.get_visible():
+            self.show_all()
+        self.apply_lock()
+        self.queue_draw()
+
+    # ---- posicao ----
+
+    def reposition(self, keep):
+        x0, y0, sw, sh = primary_geometry()
+        w, h = self.size
+        if keep and self.px is not None:
+            px = C.clamp_px(self.px - x0, sw, w)
+            py = C.clamp_px(self.py - y0, sh, h)
+        else:
+            px = C.fraction_to_px(self.conf["x"], sw, w)
+            py = C.fraction_to_px(self.conf["y"], sh, h)
+        self.px, self.py = x0 + px, y0 + py
+        self.move(self.px, self.py)
+
+    def on_configure(self, _w, ev):
+        if self.dragging:
+            self.px, self.py = ev.x, ev.y
+            if self.settle_id:
+                GLib.source_remove(self.settle_id)
+            self.settle_id = GLib.timeout_add(DRAG_SETTLE_MS, self.finish_drag)
+        return False
+
+    def finish_drag(self):
+        self.settle_id = 0
+        self.dragging = False
+        x0, y0, sw, sh = primary_geometry()
+        w, h = self.size
+        fx = C.px_to_fraction(self.px - x0, sw, w)
+        fy = C.px_to_fraction(self.py - y0, sh, h)
+        self.manager.save_position(self.wid, fx, fy)
+        return False
+
+    # ---- clique atravessa quando travado ----
+
+    def apply_lock(self):
+        gw = self.get_window()
+        if gw is None:
+            return False
+        if self.manager.cfg and self.manager.cfg["locked"]:
+            gw.input_shape_combine_region(cairo.Region(), 0, 0)
+        else:
+            gw.input_shape_combine_region(None, 0, 0)
+        return False
+
+    def on_button(self, _w, ev):
+        if ev.type != Gdk.EventType.BUTTON_PRESS:
+            return False
+        if ev.button == 1:
+            self.dragging = True
+            if self.settle_id:
+                GLib.source_remove(self.settle_id)
+            # Se o clique nao virar arrasto, destrava depois de um tempo; cada movimento reinicia a contagem.
+            self.settle_id = GLib.timeout_add(5000, self.finish_drag)
+            self.begin_move_drag(ev.button, int(ev.x_root), int(ev.y_root), ev.time)
+            return True
+        if ev.button == 3:
+            self.show_menu(ev)
+            return True
+        return False
+
+    def show_menu(self, ev):
+        menu = Gtk.Menu()
+        for label, cb in (
+            ("Personalizar...", lambda *_: self.manager.open_settings()),
+            ("Travar posição (cliques passam)", lambda *_: self.manager.set_locked(True)),
+            ("Ocultar este widget", lambda *_: self.manager.set_enabled(self.wid, False)),
+            ("Sair dos widgets", lambda *_: self.manager.quit()),
+        ):
+            item = Gtk.MenuItem(label=label)
+            item.connect("activate", cb)
+            menu.append(item)
+        menu.show_all()
+        menu.popup_at_pointer(ev)
+
+    # ---- desenho ----
+
+    def on_draw(self, _w, cr):
+        cr.set_operator(cairo.OPERATOR_SOURCE)
+        cr.set_source_rgba(0, 0, 0, 0)
+        cr.paint()
+        cr.set_operator(cairo.OPERATOR_OVER)
+        if self.conf is None:
+            return False
+        c = self.conf
+        layout = self._layout(cr)
+        if c["shadow"]:
+            for dx, dy, a in ((1, 2, 0.28), (2, 3, 0.20), (0, 1, 0.20)):
+                cr.move_to(PAD + dx, PAD + dy)
+                cr.set_source_rgba(0, 0, 0, a * c["alpha"])
+                PangoCairo.show_layout(cr, layout)
+        r, g, b = C.hex_to_rgb(c["color"])
+        cr.move_to(PAD, PAD)
+        cr.set_source_rgba(r, g, b, c["alpha"])
+        PangoCairo.show_layout(cr, layout)
+        return False
+
+
+class Manager(Gtk.Application):
+    def __init__(self):
+        super().__init__(application_id="org.lumeos.Widgets")
+        self.cfg = None
+        self.windows = {}
+        self.timer = 0
+        self.reload_id = 0
+        self.monitor = None
+
+    def do_activate(self):
+        if self.cfg is not None:  # segunda execucao: ja esta rodando
+            return
+        self.hold()
+        os.makedirs(C.CONFIG_DIR, exist_ok=True)
+        if not os.path.exists(C.WIDGETS_FILE):
+            C.save_json_atomic(C.WIDGETS_FILE, C.default_config())
+        self.reload(force=True)
+        gfile = Gio.File.new_for_path(C.CONFIG_DIR)
+        self.monitor = gfile.monitor_directory(Gio.FileMonitorFlags.NONE, None)
+        self.monitor.connect("changed", self.on_file_changed)
+        screen = Gdk.Screen.get_default()
+        screen.connect("monitors-changed", lambda *_: self.reposition_all())
+        screen.connect("size-changed", lambda *_: self.reposition_all())
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, sig, self.on_signal)
+
+    def on_signal(self):
+        self.quit()
+        return False
+
+    # ---- configuracao ----
+
+    def on_file_changed(self, _mon, gfile, _other, _event):
+        if gfile.get_basename() != os.path.basename(C.WIDGETS_FILE):
+            return
+        if self.reload_id:
+            GLib.source_remove(self.reload_id)
+        self.reload_id = GLib.timeout_add(120, self.reload_later)
+
+    def reload_later(self):
+        self.reload_id = 0
+        self.reload()
+        return False
+
+    def reload(self, force=False):
+        cfg, warn = C.load_widgets()
+        if warn:
+            print("lume-widgets: " + warn, file=sys.stderr)
+        if not force and cfg == self.cfg:
+            return
+        lock_changed = self.cfg is None or cfg["locked"] != self.cfg["locked"]
+        self.cfg = cfg
+        wanted = {w["id"] for w in cfg["widgets"] if w["enabled"]}
+        for wid in list(self.windows):
+            if wid not in wanted:
+                self.windows.pop(wid).destroy()
+        for w in cfg["widgets"]:
+            if not w["enabled"]:
+                continue
+            win = self.windows.get(w["id"])
+            if win is None:
+                win = WidgetWindow(self, w["id"])
+                self.windows[w["id"]] = win
+            win.apply(w)
+        if lock_changed:
+            for win in self.windows.values():
+                win.apply_lock()
+        self.reschedule()
+
+    def reposition_all(self):
+        for win in self.windows.values():
+            if win.conf is not None:
+                win.reposition(keep=False)
+
+    def _write(self, mutate):
+        """Le o arquivo atual, aplica a mudanca e grava (evita sobrescrever o que o lume-settings salvou)."""
+        cfg, _ = C.load_widgets()
+        mutate(cfg)
+        cfg = C.normalize_config(cfg)
+        C.save_json_atomic(C.WIDGETS_FILE, cfg)
+        self.cfg = cfg
+
+    def save_position(self, wid, fx, fy):
+        def mut(cfg):
+            for w in cfg["widgets"]:
+                if w["id"] == wid:
+                    w["x"], w["y"] = fx, fy
+        self._write(mut)
+        win = self.windows.get(wid)
+        if win is not None and win.conf is not None:
+            win.conf["x"], win.conf["y"] = fx, fy
+
+    def set_locked(self, value):
+        def mut(cfg):
+            cfg["locked"] = value
+        self._write(mut)
+        for win in self.windows.values():
+            win.apply_lock()
+
+    def set_enabled(self, wid, value):
+        def mut(cfg):
+            for w in cfg["widgets"]:
+                if w["id"] == wid:
+                    w["enabled"] = value
+        self._write(mut)
+        self.reload(force=True)
+
+    def open_settings(self):
+        try:
+            subprocess.Popen(["lume-settings"], start_new_session=True)
+        except OSError as e:
+            print("lume-widgets: nao abriu lume-settings: %s" % e, file=sys.stderr)
+
+    # ---- relogio ----
+
+    def reschedule(self):
+        if self.timer:
+            GLib.source_remove(self.timer)
+            self.timer = 0
+        fmts = [w["format"] for w in self.cfg["widgets"] if w["enabled"]]
+        self.timer = GLib.timeout_add(C.ms_until_next_tick(fmts, time.time()), self.tick)
+
+    def tick(self):
+        self.timer = 0
+        for win in self.windows.values():
+            win.refresh()
+        self.reschedule()
+        return False
+
+
+if __name__ == "__main__":
+    sys.exit(Manager().run(sys.argv))

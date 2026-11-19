@@ -1,0 +1,20 @@
+#!/bin/sh
+# Primeiro boot do sistema instalado: configura o Flathub e instala launchers e compatibilidade.
+# Sai com erro se nao houver internet; o servico tenta de novo no proximo boot.
+set -u
+
+MARK=/var/lib/lume/firstboot-done
+[ -f "${MARK}" ] && exit 0
+mkdir -p /var/lib/lume
+
+flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || exit 1
+
+for app in com.heroicgameslauncher.hgl com.usebottles.bottles; do
+    flatpak install --system -y --noninteractive flathub "${app}" || echo "AVISO: falhou ${app}" >&2
+done
+
+if ! command -v steam >/dev/null 2>&1; then
+    flatpak install --system -y --noninteractive flathub com.valvesoftware.Steam || echo "AVISO: falhou o Steam por Flatpak" >&2
+fi
+
+touch "${MARK}"

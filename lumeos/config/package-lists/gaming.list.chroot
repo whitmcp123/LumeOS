@@ -1,0 +1,27 @@
+# Jogos e desempenho
+gamemode
+mangohud
+vulkan-tools
+mesa-utils
+mesa-vulkan-drivers
+libgl1-mesa-dri
+linux-headers-amd64
+dkms
+pciutils
+earlyoom
+irqbalance
+power-profiles-daemon
+joystick
+bluez
+blueman
+
+# Compatibilidade: Flatpak (Flathub e instalado no primeiro boot), arquivos e midia
+flatpak
+xdg-desktop-portal-gtk
+ntfs-3g
+exfatprogs
+mpv
+
+# Audio (alem do que ja esta em lume.list.chroot)
+pipewire-alsa
+libspa-0.2-bluetooth

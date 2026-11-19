@@ -1,0 +1,50 @@
+#!/bin/sh
+# Habilita 32 bits, instala Steam (Proton), o driver NVIDIA e as bibliotecas de 32 bits.
+# Nenhuma falha aqui derruba o build: cada bloco avisa e segue. Leia o build.log procurando "AVISO".
+# Wine/Lutris nao vem na ISO (peso em disco): Bottles e Heroic (Flatpak) trazem o proprio Wine no primeiro boot.
+set -u
+
+dpkg --add-architecture i386
+apt-get update || echo "AVISO: apt update falhou apos habilitar i386" >&2
+
+echo "steam steam/question select I AGREE" | debconf-set-selections
+echo "steam steam/license note " | debconf-set-selections
+
+DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    steam-installer \
+    mesa-vulkan-drivers:i386 libgl1-mesa-dri:i386 libglx-mesa0:i386 libvulkan1:i386 \
+    || echo "AVISO: instalacao do Steam e das bibliotecas de 32 bits falhou" >&2
+
+# ---- Driver NVIDIA (proprietario) ----
+DEBIAN_FRONTEND=noninteractive apt-get install -y nvidia-driver \
+    || echo "AVISO: nvidia-driver NAO instalou; no sistema instalado rode: sudo lume-gpu-setup" >&2
+DEBIAN_FRONTEND=noninteractive apt-get install -y nvidia-settings nvidia-smi \
+    || echo "AVISO: nvidia-settings/nvidia-smi nao instalaram" >&2
+DEBIAN_FRONTEND=noninteractive apt-get install -y firmware-nvidia-gsp \
+    || echo "AVISO: firmware-nvidia-gsp nao encontrado (so importa para modulos abertos/GSP)" >&2
+DEBIAN_FRONTEND=noninteractive apt-get install -y nvidia-driver-libs:i386 \
+    || echo "AVISO: nvidia-driver-libs:i386 nao instalou (jogos de 32 bits no Steam podem falhar)" >&2
+
+# No chroot o DKMS tende a compilar para o kernel do host (uname -r), nao para o kernel da ISO.
+# Forca a compilacao para cada kernel que tem headers em /lib/modules.
+if command -v dkms >/dev/null 2>&1; then
+    for kdir in /lib/modules/*; do
+        [ -d "${kdir}" ] || continue
+        kver="$(basename "${kdir}")"
+        if [ -e "${kdir}/build" ]; then
+            dkms autoinstall -k "${kver}" || echo "AVISO: dkms autoinstall falhou para ${kver}" >&2
+        else
+            echo "AVISO: sem headers para o kernel ${kver}; modulo NVIDIA nao compilado para ele" >&2
+        fi
+    done
+fi
+
+if find /lib/modules -name 'nvidia*.ko*' 2>/dev/null | grep -q .; then
+    echo "NVIDIA: modulo de kernel encontrado em /lib/modules"
+else
+    echo "AVISO: nenhum nvidia*.ko encontrado. A ISO sobe com nouveau; use sudo lume-gpu-setup no sistema instalado." >&2
+fi
+
+update-initramfs -u -k all || echo "AVISO: update-initramfs falhou" >&2
+
+exit 0

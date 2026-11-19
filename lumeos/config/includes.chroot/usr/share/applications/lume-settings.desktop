@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Personalizar LumeOS
+Comment=Widgets de relogio e data, fonte, cores e cor do sistema
+Exec=lume-settings
+Icon=preferences-desktop-theme
+Terminal=false
+Categories=Settings;DesktopSettings;GTK;

@@ -1,0 +1,17 @@
+[Unit]
+Description=LumeOS: instala Flathub, launchers e compatibilidade no primeiro boot
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=!/var/lib/lume/firstboot-done
+ConditionKernelCommandLine=!boot=live
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/lume-firstboot
+TimeoutStartSec=1800
+Restart=on-failure
+RestartSec=60
+StartLimitBurst=3
+
+[Install]
+WantedBy=multi-user.target

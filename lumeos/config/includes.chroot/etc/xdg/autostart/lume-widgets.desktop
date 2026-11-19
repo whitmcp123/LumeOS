@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Widgets LumeOS
+Exec=lume-widgets
+OnlyShowIn=XFCE;
+X-GNOME-Autostart-Delay=1
+NoDisplay=true

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Iniciar
+Comment=Abre o menu de aplicativos
+Exec=xfce4-popup-whiskermenu
+Icon=start-here
+Terminal=false
+NoDisplay=true
+Categories=System;

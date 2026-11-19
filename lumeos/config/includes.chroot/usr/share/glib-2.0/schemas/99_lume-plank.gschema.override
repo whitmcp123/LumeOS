@@ -1,0 +1,9 @@
+[net.launchpad.plank.dock.settings]
+theme='Transparent'
+position='bottom'
+alignment='center'
+icon-size=44
+zoom-enabled=true
+zoom-percent=140
+hide-mode='intelligent'
+dock-items=['01-iniciar.dockitem','02-firefox.dockitem','03-arquivos.dockitem','04-terminal.dockitem','05-steam.dockitem','06-personalizar.dockitem']

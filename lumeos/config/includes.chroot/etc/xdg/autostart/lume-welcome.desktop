@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Boas-vindas LumeOS
+Exec=lume-settings --first-run
+OnlyShowIn=XFCE;
+X-GNOME-Autostart-Delay=2
+NoDisplay=true

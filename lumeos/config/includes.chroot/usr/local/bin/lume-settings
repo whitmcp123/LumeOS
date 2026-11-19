@@ -1,0 +1,485 @@
+#!/usr/bin/python3
+"""lume-settings: personaliza os widgets de relogio/data e a cor de destaque do sistema.
+
+  lume-settings               abre a janela
+  lume-settings --first-run   abre so no primeiro login (boas-vindas)
+"""
+import locale
+import os
+import subprocess
+import sys
+import time
+
+sys.path.insert(0, "/usr/local/lib/lume")
+import lumecfg as C  # noqa: E402
+
+import gi  # noqa: E402
+
+gi.require_version("Gtk", "3.0")
+gi.require_version("Gdk", "3.0")
+from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
+
+try:
+    locale.setlocale(locale.LC_ALL, "")
+except locale.Error:
+    pass
+
+TEXT_PRESETS = [
+    ("Hora (24 h)", "%H:%M"),
+    ("Hora com segundos", "%H:%M:%S"),
+    ("Hora (12 h)", "%I:%M %p"),
+    ("Dia da semana", "%A"),
+    ("Data completa", "%A, %d de %B"),
+    ("Data curta", "%d/%m/%Y"),
+    ("Hora e data em 2 linhas", "%H:%M\\n%d de %B"),
+]
+CASES = [("Normal", "normal"), ("MAIÚSCULAS", "upper"),
+         ("minúsculas", "lower"), ("Primeira maiúscula", "first")]
+ACCENTS = [("Branco", "#ffffff"), ("Cinza", "#8a8a8a"), ("Azul", "#3b82f6"),
+           ("Verde", "#22c55e"), ("Laranja", "#f59e0b"), ("Vermelho", "#ef4444"),
+           ("Roxo", "#8b5cf6"), ("Rosa", "#ec4899")]
+HELP = ("Códigos: %H hora, %M minuto, %S segundo, %I hora 12 h, %p AM/PM, "
+        "%A dia da semana, %d dia, %m mês (número), %B mês (nome), %Y ano. "
+        "Escreva \\n para quebrar a linha.")
+
+
+def rgba_to_hex(rgba):
+    return C.rgb_to_hex(rgba.red, rgba.green, rgba.blue)
+
+
+def hex_to_rgba(h):
+    rgba = Gdk.RGBA()
+    rgba.parse(h)
+    return rgba
+
+
+def label(text, xalign=0.0, wrap=False):
+    lb = Gtk.Label(label=text)
+    lb.set_xalign(xalign)
+    lb.set_line_wrap(wrap)
+    return lb
+
+
+class SettingsWindow(Gtk.ApplicationWindow):
+    def __init__(self, app, first_run):
+        super().__init__(application=app, title="Personalizar LumeOS")
+        self.set_default_size(840, 620)
+        self.cfg, _ = C.load_widgets()
+        self.current = self.cfg["widgets"][0]["id"] if self.cfg["widgets"] else None
+        self.loading = False
+        self.pending = {}          # id do widget -> campos alterados aqui
+        self.pending_locked = False
+        self.save_id = 0
+        self.watch_id = 0
+
+        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.add(root)
+        if first_run:
+            banner = label("Bem-vindo ao LumeOS! Escolha onde ficam o relógio e a data, a fonte e as cores. "
+                           "Tudo pode ser mudado depois em “Personalizar LumeOS”.", wrap=True)
+            banner.set_margin_top(12)
+            banner.set_margin_bottom(4)
+            banner.set_margin_start(16)
+            banner.set_margin_end(16)
+            root.pack_start(banner, False, False, 0)
+        notebook = Gtk.Notebook()
+        root.pack_start(notebook, True, True, 0)
+        notebook.append_page(self.build_widgets_tab(), Gtk.Label(label="Widgets"))
+        notebook.append_page(self.build_accent_tab(), Gtk.Label(label="Cor do sistema"))
+
+        self.rebuild_list()
+        gfile = Gio.File.new_for_path(C.CONFIG_DIR)
+        os.makedirs(C.CONFIG_DIR, exist_ok=True)
+        self.monitor = gfile.monitor_directory(Gio.FileMonitorFlags.NONE, None)
+        self.monitor.connect("changed", self.on_file_changed)
+        self.show_all()
+
+    # ------------------------------------------------------------------ aba Widgets
+
+    def build_widgets_tab(self):
+        page = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
+        for side in ("top", "bottom", "start", "end"):
+            getattr(page, "set_margin_" + side)(16)
+
+        left = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        left.set_size_request(190, -1)
+        self.listbox = Gtk.ListBox()
+        self.listbox.set_selection_mode(Gtk.SelectionMode.SINGLE)
+        self.listbox.connect("row-selected", self.on_row_selected)
+        scroller = Gtk.ScrolledWindow()
+        scroller.set_shadow_type(Gtk.ShadowType.IN)
+        scroller.add(self.listbox)
+        left.pack_start(scroller, True, True, 0)
+        btn_add = Gtk.Button(label="Adicionar widget")
+        btn_add.connect("clicked", self.on_add)
+        btn_del = Gtk.Button(label="Remover")
+        btn_del.connect("clicked", self.on_remove)
+        left.pack_start(btn_add, False, False, 0)
+        left.pack_start(btn_del, False, False, 0)
+        page.pack_start(left, False, False, 0)
+
+        right = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        page.pack_start(right, True, True, 0)
+
+        self.preview = Gtk.Label()
+        self.preview.set_xalign(0.0)
+        self.preview.set_margin_bottom(4)
+        right.pack_start(self.preview, False, False, 0)
+
+        grid = Gtk.Grid(column_spacing=12, row_spacing=10)
+        self.form = grid
+        right.pack_start(grid, False, False, 0)
+        row = 0
+
+        def add(text, widget):
+            nonlocal row
+            grid.attach(label(text), 0, row, 1, 1)
+            widget.set_hexpand(True)
+            grid.attach(widget, 1, row, 1, 1)
+            row += 1
+
+        self.sw_enabled = Gtk.Switch()
+        self.sw_enabled.set_halign(Gtk.Align.START)
+        self.sw_enabled.connect("notify::active", lambda s, _p: self.set_field("enabled", s.get_active()))
+        add("Mostrar na tela", self.sw_enabled)
+
+        self.ent_format = Gtk.Entry()
+        self.ent_format.connect("changed", lambda e: self.set_field("format", e.get_text() or "%H:%M"))
+        add("Texto", self.ent_format)
+
+        self.cb_preset = Gtk.ComboBoxText()
+        self.cb_preset.append_text("Escolher um modelo…")
+        for name, _fmt in TEXT_PRESETS:
+            self.cb_preset.append_text(name)
+        self.cb_preset.set_active(0)
+        self.cb_preset.connect("changed", self.on_preset)
+        add("Modelos", self.cb_preset)
+
+        help_label = label(HELP, wrap=True)
+        help_label.set_max_width_chars(60)
+        grid.attach(help_label, 1, row, 1, 1)
+        row += 1
+
+        self.btn_font = Gtk.FontButton()
+        self.btn_font.connect("font-set", lambda b: self.set_field("font", b.get_font()))
+        add("Fonte e tamanho", self.btn_font)
+
+        self.btn_color = Gtk.ColorButton()
+        self.btn_color.connect("color-set", lambda b: self.set_field("color", rgba_to_hex(b.get_rgba())))
+        add("Cor", self.btn_color)
+
+        self.sc_alpha = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 5, 100, 1)
+        self.sc_alpha.connect("value-changed", lambda s: self.set_field("alpha", s.get_value() / 100.0))
+        add("Opacidade (%)", self.sc_alpha)
+
+        self.sw_shadow = Gtk.Switch()
+        self.sw_shadow.set_halign(Gtk.Align.START)
+        self.sw_shadow.connect("notify::active", lambda s, _p: self.set_field("shadow", s.get_active()))
+        add("Sombra", self.sw_shadow)
+
+        self.cb_case = Gtk.ComboBoxText()
+        for name, cid in CASES:
+            self.cb_case.append(cid, name)
+        self.cb_case.connect("changed", lambda c: self.set_field("case", c.get_active_id() or "normal"))
+        add("Letras", self.cb_case)
+
+        self.sc_x = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, 1)
+        self.sc_x.connect("value-changed", lambda s: self.set_field("x", s.get_value() / 100.0))
+        add("Posição horizontal (%)", self.sc_x)
+
+        self.sc_y = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, 1)
+        self.sc_y.connect("value-changed", lambda s: self.set_field("y", s.get_value() / 100.0))
+        add("Posição vertical (%)", self.sc_y)
+
+        tip = label("Dica: com os widgets destravados, arraste-os com o mouse direto na área de trabalho. "
+                    "Para usar uma fonte sua, copie o arquivo .ttf para ~/.local/share/fonts.", wrap=True)
+        right.pack_start(tip, False, False, 0)
+
+        self.sw_locked = Gtk.Switch()
+        self.sw_locked.set_active(self.cfg["locked"])
+        self.sw_locked.connect("notify::active", self.on_locked)
+        lock_row = Gtk.Box(spacing=12)
+        lock_row.pack_start(self.sw_locked, False, False, 0)
+        lock_row.pack_start(label("Travar posição: os cliques atravessam os widgets (destrave para arrastar)",
+                                  wrap=True), True, True, 0)
+        right.pack_start(lock_row, False, False, 0)
+        return page
+
+    def cur(self):
+        for w in self.cfg["widgets"]:
+            if w["id"] == self.current:
+                return w
+        return None
+
+    def rebuild_list(self):
+        for child in self.listbox.get_children():
+            self.listbox.remove(child)
+        target = None
+        for w in self.cfg["widgets"]:
+            row = Gtk.ListBoxRow()
+            row.wid = w["id"]
+            lb = label(C.display_name(w))
+            lb.set_margin_top(8)
+            lb.set_margin_bottom(8)
+            lb.set_margin_start(10)
+            row.add(lb)
+            self.listbox.add(row)
+            if w["id"] == self.current:
+                target = row
+        self.listbox.show_all()
+        if target is None and self.listbox.get_children():
+            target = self.listbox.get_children()[0]
+            self.current = target.wid
+        if target is not None:
+            self.listbox.select_row(target)
+        self.populate()
+
+    def on_row_selected(self, _lb, row):
+        if row is None:
+            return
+        self.current = row.wid
+        self.populate()
+
+    def populate(self):
+        w = self.cur()
+        self.loading = True
+        try:
+            self.form.set_sensitive(w is not None)
+            if w is None:
+                self.preview.set_text("")
+                return
+            self.sw_enabled.set_active(w["enabled"])
+            self.ent_format.set_text(w["format"])
+            self.cb_preset.set_active(0)
+            self.btn_font.set_font(w["font"])
+            self.btn_color.set_rgba(hex_to_rgba(w["color"]))
+            self.sc_alpha.set_value(round(w["alpha"] * 100))
+            self.sw_shadow.set_active(w["shadow"])
+            self.cb_case.set_active_id(w["case"])
+            self.sc_x.set_value(round(w["x"] * 100))
+            self.sc_y.set_value(round(w["y"] * 100))
+            self.update_preview(w)
+        finally:
+            self.loading = False
+
+    def update_preview(self, w):
+        text = C.render_text(w["format"], w["case"]).replace("\n", "  |  ")
+        self.preview.set_markup("<b>Agora:</b>  " + GLib.markup_escape_text(text))
+
+    # ---- edicao ----
+
+    def set_field(self, key, value):
+        if self.loading:
+            return
+        w = self.cur()
+        if w is None:
+            return
+        w[key] = value
+        self.pending.setdefault(w["id"], set()).add(key)
+        if key in ("format", "case"):
+            self.update_preview(w)
+        self.schedule_save()
+
+    def on_preset(self, combo):
+        if self.loading:
+            return
+        idx = combo.get_active()
+        if idx < 1 or idx > len(TEXT_PRESETS):
+            return
+        self.ent_format.set_text(TEXT_PRESETS[idx - 1][1])  # dispara "changed" e salva
+
+    def on_locked(self, sw, _p):
+        if self.loading:
+            return
+        self.cfg["locked"] = sw.get_active()
+        self.pending_locked = True
+        self.schedule_save()
+
+    def schedule_save(self):
+        if self.save_id:
+            GLib.source_remove(self.save_id)
+        self.save_id = GLib.timeout_add(150, self.flush)
+
+    def flush(self):
+        """Grava so o que foi mexido aqui, preservando a posicao que o arrasto salvou no disco."""
+        self.save_id = 0
+        disk, _ = C.load_widgets()
+        by_id = {w["id"]: w for w in disk["widgets"]}
+        merged = []
+        for w in self.cfg["widgets"]:
+            base = by_id.get(w["id"])
+            if base is None:
+                merged.append(w)
+                continue
+            for key in self.pending.get(w["id"], ()):
+                base[key] = w[key]
+            merged.append(base)
+        disk["widgets"] = merged
+        if self.pending_locked:
+            disk["locked"] = self.cfg["locked"]
+        disk = C.normalize_config(disk)
+        try:
+            C.save_json_atomic(C.WIDGETS_FILE, disk)
+        except OSError as e:
+            print("lume-settings: nao salvou: %s" % e, file=sys.stderr)
+            return False
+        self.cfg = disk
+        self.pending.clear()
+        self.pending_locked = False
+        return False
+
+    def on_add(self, _b):
+        if len(self.cfg["widgets"]) >= C.MAX_WIDGETS:
+            return
+        wid = C.unused_id(self.cfg)
+        self.cfg["widgets"].append(C.new_widget(wid, font="Inter 28"))
+        self.current = wid
+        self.flush()
+        self.rebuild_list()
+
+    def on_remove(self, _b):
+        w = self.cur()
+        if w is None:
+            return
+        self.cfg["widgets"] = [x for x in self.cfg["widgets"] if x["id"] != w["id"]]
+        self.pending.pop(w["id"], None)
+        self.current = None
+        self.flush()
+        self.rebuild_list()
+
+    def on_file_changed(self, _m, gfile, _o, _e):
+        if gfile.get_basename() != os.path.basename(C.WIDGETS_FILE):
+            return
+        if self.watch_id:
+            GLib.source_remove(self.watch_id)
+        self.watch_id = GLib.timeout_add(200, self.external_change)
+
+    def external_change(self):
+        """O lume-widgets salvou uma nova posicao depois de um arrasto."""
+        self.watch_id = 0
+        if self.pending or self.save_id:
+            return False
+        disk, _ = C.load_widgets()
+        if disk == self.cfg:
+            return False
+        self.cfg = disk
+        self.loading = True
+        try:
+            self.sw_locked.set_active(disk["locked"])
+        finally:
+            self.loading = False
+        self.rebuild_list()
+        return False
+
+    # ------------------------------------------------------------------ aba Cor do sistema
+
+    def build_accent_tab(self):
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+        for side in ("top", "bottom", "start", "end"):
+            getattr(page, "set_margin_" + side)(16)
+        page.pack_start(label(
+            "Escolha a cor de destaque do sistema: seleções, botões principais, interruptores e barras. "
+            "Vale para aplicativos GTK. Alguns aplicativos só mudam ao serem reabertos.", wrap=True),
+            False, False, 0)
+
+        row = Gtk.Box(spacing=10)
+        self.accent_btn = Gtk.ColorButton()
+        self.accent_btn.set_rgba(hex_to_rgba(C.load_accent() or "#8a8a8a"))
+        row.pack_start(label("Qualquer cor:"), False, False, 0)
+        row.pack_start(self.accent_btn, False, False, 0)
+        page.pack_start(row, False, False, 0)
+
+        swatches = Gtk.Box(spacing=8)
+        css = []
+        for i, (name, hexv) in enumerate(ACCENTS):
+            b = Gtk.Button()
+            b.set_tooltip_text(name)
+            b.set_size_request(34, 34)
+            b.get_style_context().add_class("lume-sw-%d" % i)
+            css.append(".lume-sw-%d { background-image: none; background-color: %s; "
+                       "border-radius: 17px; min-width: 30px; min-height: 30px; }" % (i, hexv))
+            b.connect("clicked", lambda _b, h=hexv: self.accent_btn.set_rgba(hex_to_rgba(h)))
+            swatches.pack_start(b, False, False, 0)
+        provider = Gtk.CssProvider()
+        provider.load_from_data("\n".join(css).encode("utf-8"))
+        Gtk.StyleContext.add_provider_for_screen(
+            Gdk.Screen.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        page.pack_start(swatches, False, False, 0)
+
+        actions = Gtk.Box(spacing=10)
+        btn_apply = Gtk.Button(label="Aplicar")
+        btn_apply.connect("clicked", self.on_apply)
+        btn_reset = Gtk.Button(label="Voltar ao padrão do tema")
+        btn_reset.connect("clicked", self.on_reset)
+        actions.pack_start(btn_apply, False, False, 0)
+        actions.pack_start(btn_reset, False, False, 0)
+        page.pack_start(actions, False, False, 0)
+
+        self.status = label("", wrap=True)
+        page.pack_start(self.status, False, False, 0)
+        return page
+
+    def on_apply(self, _b):
+        try:
+            c = C.apply_accent(rgba_to_hex(self.accent_btn.get_rgba()))
+        except (OSError, ValueError) as e:
+            self.status.set_text("Não consegui salvar a cor: %s" % e)
+            return
+        self.reload_theme()
+        self.status.set_text("Cor %s aplicada. A tela pode piscar rapidamente ao recarregar o tema." % c)
+
+    def on_reset(self, _b):
+        try:
+            C.reset_accent()
+        except OSError as e:
+            self.status.set_text("Não consegui restaurar: %s" % e)
+            return
+        self.reload_theme()
+        self.status.set_text("Cor do tema restaurada.")
+
+    def reload_theme(self):
+        """Faz os aplicativos GTK relerem o gtk.css trocando o tema por um instante e voltando."""
+        try:
+            out = subprocess.run(["xfconf-query", "-c", "xsettings", "-p", "/Net/ThemeName"],
+                                 capture_output=True, text=True, timeout=5)
+            theme = out.stdout.strip()
+            if out.returncode != 0 or not theme:
+                return
+            subprocess.run(["xfconf-query", "-c", "xsettings", "-p", "/Net/ThemeName", "-s", "Adwaita"],
+                           timeout=5)
+            time.sleep(0.25)
+            subprocess.run(["xfconf-query", "-c", "xsettings", "-p", "/Net/ThemeName", "-s", theme],
+                           timeout=5)
+        except (OSError, subprocess.SubprocessError) as e:
+            print("lume-settings: nao recarregou o tema: %s" % e, file=sys.stderr)
+
+
+class App(Gtk.Application):
+    def __init__(self, first_run):
+        super().__init__(application_id="org.lumeos.Settings")
+        self.first_run = first_run
+        self.win = None
+
+    def do_activate(self):
+        if self.win is None:
+            self.win = SettingsWindow(self, self.first_run)
+            # Garante que o processo dos widgets esteja rodando (a segunda execucao so reativa a primeira).
+            try:
+                subprocess.Popen(["lume-widgets"], start_new_session=True,
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except OSError as e:
+                print("lume-settings: nao iniciou lume-widgets: %s" % e, file=sys.stderr)
+        self.win.present()
+
+
+def main(argv):
+    first_run = "--first-run" in argv
+    if first_run:
+        if os.path.exists(C.FIRST_RUN_MARK):
+            return 0
+        C.save_json_atomic(C.FIRST_RUN_MARK, {"done": True})
+    return App(first_run).run([argv[0]])
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

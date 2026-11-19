@@ -1,0 +1,22 @@
+#!/bin/sh
+# Desliga tarefas em segundo plano que consomem RAM e disco, e deixa o terminal com cara de Arch.
+set -u
+
+for unit in apt-daily.timer apt-daily-upgrade.timer man-db.timer e2scrub_all.timer dpkg-db-backup.timer NetworkManager-wait-online.service; do
+    systemctl disable "${unit}" 2>/dev/null || true
+done
+
+# Terminal minimalista: prompt curto e fastfetch ao abrir (desligue com: export LUME_NOFETCH=1 no ~/.bashrc)
+cat >> /etc/skel/.bashrc <<'BASHRC'
+
+# --- LumeOS ---
+PS1='\[\e[2m\]\w\[\e[0m\] \[\e[1m\]>\[\e[0m\] '
+alias ls='ls --color=auto'
+alias grep='grep --color=auto'
+alias ll='ls -lah'
+if [ -z "${LUME_NOFETCH:-}" ] && command -v fastfetch >/dev/null 2>&1; then
+    fastfetch
+fi
+BASHRC
+
+exit 0

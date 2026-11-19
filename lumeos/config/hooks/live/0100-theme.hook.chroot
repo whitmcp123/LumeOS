@@ -1,0 +1,37 @@
+#!/bin/sh
+# Instala o tema Fluent (visual parecido com o Windows 11) e preenche os nomes no xsettings.
+# Se o download falhar, a ISO continua sendo gerada com o tema padrao Adwaita.
+set -u
+
+GTK_THEME="Adwaita"
+ICON_THEME="Adwaita"
+WORK="$(mktemp -d)"
+
+install_repo() {
+    repo="$1"
+    if git clone --depth 1 "https://github.com/vinceliuice/${repo}.git" "${WORK}/${repo}"; then
+        ( cd "${WORK}/${repo}" && ./install.sh ) || echo "AVISO: install.sh de ${repo} falhou" >&2
+    else
+        echo "AVISO: nao foi possivel baixar ${repo}" >&2
+    fi
+}
+
+install_repo Fluent-gtk-theme
+install_repo Fluent-icon-theme
+
+found_theme="$(ls /usr/share/themes 2>/dev/null | grep -x 'Fluent-Light' | head -n1 || true)"
+[ -z "${found_theme}" ] && found_theme="$(ls /usr/share/themes 2>/dev/null | grep '^Fluent' | head -n1 || true)"
+[ -n "${found_theme}" ] && GTK_THEME="${found_theme}"
+
+found_icons="$(ls /usr/share/icons 2>/dev/null | grep -x 'Fluent' | head -n1 || true)"
+[ -z "${found_icons}" ] && found_icons="$(ls /usr/share/icons 2>/dev/null | grep '^Fluent' | head -n1 || true)"
+[ -n "${found_icons}" ] && ICON_THEME="${found_icons}"
+
+XS=/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml
+if [ -f "${XS}" ]; then
+    sed -i "s|@GTK_THEME@|${GTK_THEME}|; s|@ICON_THEME@|${ICON_THEME}|" "${XS}"
+fi
+
+echo "Tema GTK: ${GTK_THEME} | Icones: ${ICON_THEME}"
+rm -rf "${WORK}"
+exit 0

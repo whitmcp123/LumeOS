@@ -1,0 +1,23 @@
+#!/bin/sh
+# Ultimo hook: tira da imagem o que ocupa SSD e quase ninguem usa (manuais, docs, traducoes alem de pt e en).
+set -u
+
+echo "== slim: removendo docs, man, info e traducoes que nao sao pt/en =="
+find /usr/share/doc -mindepth 2 -type f ! -name copyright -delete 2>/dev/null || true
+find /usr/share/doc -mindepth 1 -type d -empty -delete 2>/dev/null || true
+rm -rf /usr/share/man/* /usr/share/info/* /usr/share/lintian/* /usr/share/groff/* 2>/dev/null || true
+
+if [ -d /usr/share/locale ]; then
+    for d in /usr/share/locale/*/; do
+        [ -d "${d}" ] || continue
+        n="$(basename "${d}")"
+        case "${n}" in
+            en|en_*|pt|pt_*) ;;
+            *) rm -rf "${d}" ;;
+        esac
+    done
+fi
+
+apt-get clean
+rm -rf /root/.cache /var/cache/apt/*.bin 2>/dev/null || true
+exit 0

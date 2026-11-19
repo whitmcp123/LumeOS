@@ -1,0 +1,20 @@
+#!/bin/sh
+# Liga o instalador de apps do primeiro boot, earlyoom, TRIM do SSD; desliga servicos que o desktop nao usa.
+set -u
+
+chmod 0755 /usr/local/bin/lume-firstboot /usr/local/bin/lume-gpu-setup \
+           /usr/local/bin/lume-widgets /usr/local/bin/lume-settings 2>/dev/null || true
+
+systemctl enable lume-firstboot.service || echo "AVISO: nao foi possivel habilitar lume-firstboot" >&2
+systemctl enable earlyoom.service 2>/dev/null || true
+systemctl enable power-profiles-daemon.service 2>/dev/null || true
+systemctl enable fstrim.timer 2>/dev/null || true
+
+for unit in ModemManager.service avahi-daemon.service avahi-daemon.socket; do
+    systemctl disable "${unit}" 2>/dev/null || true
+done
+
+# Padroes da dock (Plank) vem de um override de GSettings; precisa compilar.
+glib-compile-schemas /usr/share/glib-2.0/schemas || echo "AVISO: glib-compile-schemas falhou (dock usa padroes do Plank)" >&2
+
+exit 0
