@@ -1,0 +1,1288 @@
+<title>Prévia LumeOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* Layout: desktop em tela cheia, barra de tarefas inferior, janelas arrastáveis.
+   Paleta: preto, cinza e branco. Tipos: Space Grotesk (títulos e números) + Inter (interface).
+   Movimento: curvas e tempos do guia de movimento do Windows 11, só transform e opacity quando possível. */
+:root{
+  --glass:rgba(250,250,255,.93); --glass-solid:#fbfbff; --line:rgba(24,28,72,.11);
+  --fg:#1b1d2e; --muted:#656a85; --accent:#4f5df5; --accent-fg:#ffffff;
+  --win:#ffffff; --win-bar:#f2f3fb; --tile:#e9ebf6; --danger:#e5484d;
+  --snake-a:#c4ebd3; --snake-b:#b2e0c5;
+  --shadow:0 18px 44px rgba(16,20,70,.26),0 1px 6px rgba(16,20,70,.12);
+  --font-ui:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --font-head:'Space Grotesk','Inter',system-ui,sans-serif;
+  --bar-h:96px; --top-h:30px; --dk:50px;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --glass:rgba(28,31,46,.94); --glass-solid:#1c1f2e; --line:rgba(255,255,255,.12);
+    --fg:#f0f2fc; --muted:#a4aac6; --accent:#8b97ff; --accent-fg:#0f1226;
+    --win:#1f2233; --win-bar:#292d42; --tile:#31364d; --danger:#ff6b72;
+    --snake-a:#1f3d31; --snake-b:#1a3529;
+    --shadow:0 18px 44px rgba(0,0,0,.55),0 1px 6px rgba(0,0,0,.35);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --glass:rgba(28,31,46,.94); --glass-solid:#1c1f2e; --line:rgba(255,255,255,.12);
+  --fg:#f0f2fc; --muted:#a4aac6; --accent:#8b97ff; --accent-fg:#0f1226;
+  --win:#1f2233; --win-bar:#292d42; --tile:#31364d; --danger:#ff6b72;
+  --snake-a:#1f3d31; --snake-b:#1a3529;
+  --shadow:0 18px 44px rgba(0,0,0,.55),0 1px 6px rgba(0,0,0,.35);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;overflow:hidden;background:#05060a;color:var(--fg);font-family:var(--font-ui);font-size:14px;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* cores do texto sobre o papel de parede: claro em fundos escuros */
+body{--desk-fg:var(--fg);--desk-muted:var(--muted);--desk-hover:var(--glass)}
+body[data-tone="dark"]{--desk-fg:#ffffff;--desk-muted:rgba(255,255,255,.74);--desk-hover:rgba(255,255,255,.14)}
+
+/* papel de parede: estático, desenhado uma vez (sem animação, sem filtro) */
+#wall{position:fixed;inset:0;background:#05060a center/cover no-repeat}
+#wall[data-wall="aurora"]{background:
+  radial-gradient(48% 55% at 14% 18%,rgba(79,93,245,.60),transparent 70%),
+  radial-gradient(44% 50% at 88% 22%,rgba(168,85,247,.48),transparent 70%),
+  radial-gradient(52% 55% at 74% 98%,rgba(20,184,166,.42),transparent 72%),
+  radial-gradient(40% 46% at 12% 92%,rgba(236,72,153,.38),transparent 70%),#05060a}
+#wall[data-wall="aurora"]::after{content:"";position:absolute;left:50%;top:44%;width:58vmin;height:58vmin;transform:translate(-50%,-50%);border-radius:50%;border:1px solid rgba(255,255,255,.10);box-shadow:inset 0 0 90px rgba(99,102,241,.22),0 0 0 7vmin rgba(255,255,255,.014)}
+#wall[data-wall="meia"]{background:
+  radial-gradient(70% 60% at 50% 38%,rgba(99,102,241,.26),transparent 70%),
+  radial-gradient(50% 40% at 50% 110%,rgba(236,72,153,.16),transparent 70%),#04050a}
+#wall[data-wall="claro"]{background:
+  radial-gradient(55% 60% at 14% 14%,#bfd0ff,transparent 70%),
+  radial-gradient(50% 55% at 88% 20%,#f0c6ff,transparent 70%),
+  radial-gradient(60% 55% at 70% 100%,#b8f0e4,transparent 72%),#eef1ff}
+.spot{position:fixed;inset:0;background:center/cover no-repeat;opacity:0;transition:opacity 1.4s ease;pointer-events:none}
+.spot.on{opacity:1}
+#desktop{position:fixed;left:0;right:0;top:calc(var(--top-h) + env(safe-area-inset-top,0px));bottom:calc(var(--bar-h) + env(safe-area-inset-bottom,0px));overflow:hidden}
+
+/* ícones e widget da área de trabalho */
+#icons{position:absolute;left:max(10px,env(safe-area-inset-left,0px));top:10px;bottom:10px;display:grid;grid-auto-flow:column;grid-template-rows:repeat(auto-fill,86px);grid-auto-columns:88px;align-content:start;gap:2px}
+.di{width:84px;height:82px;display:grid;justify-items:center;align-content:center;gap:6px;padding:6px 4px;border:0;background:none;border-radius:10px;font-size:12px;font-weight:500;color:var(--fg);text-align:center}
+.di:hover{background:var(--glass)}
+#icons .di{color:var(--desk-fg)}
+#icons .di:hover{background:var(--desk-hover)}
+body[data-tone="dark"] #icons .di span:last-child{text-shadow:0 1px 3px rgba(0,0,0,.55)}
+.tile{position:relative;width:40px;height:40px;border-radius:22.5%;display:grid;place-items:center;color:#fff;background:linear-gradient(180deg,color-mix(in srgb,var(--c) 68%,#fff) 0%,var(--c) 58%,color-mix(in srgb,var(--c) 84%,#000) 100%);border:0;box-shadow:0 2px 6px rgba(10,14,50,.28)}
+.tile::after{content:"";position:absolute;inset:0;border-radius:inherit;background:linear-gradient(180deg,rgba(255,255,255,.30),rgba(255,255,255,0) 52%);pointer-events:none}
+.tile svg{position:relative;z-index:1}
+.tile svg{width:70%;height:70%}
+.di .tile{width:48px;height:48px}
+#icons{--is:48px;grid-template-rows:repeat(auto-fill,calc(var(--is) + 38px));grid-auto-columns:calc(var(--is) + 40px)}
+body[data-icons="p"] #icons{--is:38px}
+body[data-icons="g"] #icons{--is:62px}
+body[data-desk="0"] #icons{display:none}
+#icons .di{width:calc(var(--is) + 36px);height:calc(var(--is) + 34px)}
+#icons .di .tile{width:var(--is);height:var(--is)}#widget{position:absolute;right:max(20px,env(safe-area-inset-right,0px));top:18px;text-align:right;pointer-events:none;color:var(--desk-fg)}
+body[data-tone="dark"] #widget{text-shadow:0 2px 14px rgba(0,0,0,.45)}
+#widget b{display:block;font-family:var(--font-head);font-weight:500;font-size:52px;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+#widget span{display:block;margin-top:6px;color:var(--desk-muted);font-size:13px}
+@media (max-width:760px){#widget{display:none}}
+@media (max-width:560px){#icons{display:none}}
+
+/* janelas */
+.win{--accent:var(--c);--accent-fg:#fff;position:absolute;display:flex;flex-direction:column;background:var(--win);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);overflow:hidden;max-width:100%;contain:layout style paint;will-change:transform,opacity}
+.win.max{border-radius:0;border-width:0}
+.bar{display:flex;align-items:center;gap:10px;height:40px;padding:0 4px 0 12px;background:color-mix(in srgb,var(--c) 14%,var(--win-bar));border-bottom:1px solid var(--line);cursor:grab;touch-action:none}
+.bar:active{cursor:grabbing}
+.win:not(.active) .bar{opacity:.8}
+.bar .ico{position:relative;width:22px;height:22px;border-radius:22.5%;display:grid;place-items:center;color:#fff;background:linear-gradient(180deg,color-mix(in srgb,var(--c) 68%,#fff) 0%,var(--c) 58%,color-mix(in srgb,var(--c) 84%,#000) 100%)}
+.bar .ico svg{width:80%;height:80%}
+.ttl{flex:1;font-family:var(--font-head);font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ctl{display:flex}
+.ctl button{width:42px;height:34px;border:0;background:none;border-radius:8px;display:grid;place-items:center;color:var(--muted)}
+.ctl button:hover{background:var(--line);color:var(--fg)}
+.ctl button[data-a="close"]:hover{background:#e5484d;color:#fff}
+.ctl svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.body{flex:1;min-height:0;overflow:auto;padding:16px;contain:layout style}
+.win.max .body{display:grid;place-items:center}
+
+/* partes comuns dos jogos e apps */
+.game{position:relative;width:100%;max-width:440px;margin:0 auto;display:grid;gap:12px}
+.hud{display:flex;align-items:center;gap:10px}
+.hud>div{display:grid;min-width:72px;padding:6px 12px;border-radius:10px;background:var(--tile)}
+.hud span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.hud b{font-family:var(--font-head);font-size:18px;font-variant-numeric:tabular-nums;color:var(--accent)}
+.hud .btn{margin-left:auto}
+.hud .btn+.btn{margin-left:0}
+.btn{border:1px solid var(--line);background:var(--tile);padding:9px 14px;border-radius:9px;font-weight:600}
+.btn:hover{filter:brightness(1.06)}
+.btn[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg)}
+.btn.pri{background:var(--accent);color:var(--accent-fg);border-color:transparent}
+.hint{margin:0;color:var(--muted);font-size:12px}
+.stage{position:relative}
+.ov{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;gap:12px;text-align:center;padding:16px;border-radius:12px;background:color-mix(in srgb,var(--win) 90%,transparent);z-index:3}
+.ov p{margin:0;font-family:var(--font-head);font-size:17px;font-weight:600;max-width:24ch;text-wrap:balance}
+.snake canvas{display:block;width:100%;height:auto;aspect-ratio:1;border-radius:12px;border:1px solid var(--line);touch-action:none}
+.pad{display:none;grid-template-columns:repeat(4,1fr);gap:8px}
+.pad button{height:46px;border-radius:10px;border:1px solid var(--line);background:var(--tile);font-size:18px}
+@media (pointer:coarse){.pad{display:grid}}
+
+/* 2048: peças deslizam por transform */
+.board{--gap:8px;position:relative;aspect-ratio:1;padding:var(--gap);border-radius:12px;background:var(--tile);touch-action:none}
+.board .bg{position:absolute;inset:var(--gap);display:grid;grid-template:repeat(4,1fr)/repeat(4,1fr);gap:var(--gap)}
+.cell{border-radius:9px;background:color-mix(in srgb,var(--fg) 7%,transparent)}
+.tiles{position:absolute;inset:var(--gap)}
+.tile2{position:absolute;left:0;top:0;width:calc((100% - 3 * var(--gap)) / 4);aspect-ratio:1;border-radius:9px;display:grid;place-items:center;font-family:var(--font-head);font-weight:600;font-size:clamp(20px,7vw,32px);font-variant-numeric:tabular-nums;background:var(--tile);transition:transform .12s cubic-bezier(0,0,0,1);will-change:transform}
+.tile2.sm{font-size:clamp(15px,5vw,24px)}
+
+.mem{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.card{aspect-ratio:1;border:0;padding:0;background:none;perspective:600px}
+.card .in{position:relative;display:block;width:100%;height:100%;transform-style:preserve-3d;transition:transform .3s cubic-bezier(.3,.7,.2,1)}
+.card.flip .in{transform:rotateY(180deg)}
+.f{position:absolute;inset:0;display:grid;place-items:center;border-radius:11px;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.f.back{background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 80%,#fff),var(--accent));box-shadow:inset 0 0 0 4px color-mix(in srgb,#fff 25%,transparent)}
+.f.front{transform:rotateY(180deg);background:var(--win);color:var(--sc,var(--fg));font-size:clamp(22px,7vw,32px);font-weight:600;border:1px solid var(--line)}
+.card.done .f.front{background:color-mix(in srgb,var(--sc,var(--accent)) 16%,var(--win));border-color:color-mix(in srgb,var(--sc,var(--accent)) 45%,transparent)}
+
+.mines{display:grid;grid-template-columns:repeat(9,1fr);gap:3px}
+.mc{aspect-ratio:1;border:0;border-radius:6px;padding:0;display:grid;place-items:center;background:color-mix(in srgb,var(--c) 26%,var(--win-bar));font-family:var(--font-head);font-weight:600;font-size:clamp(12px,4vw,16px);box-shadow:inset 0 -2px 0 rgba(0,0,0,.12)}
+.mc.open{background:color-mix(in srgb,var(--fg) 5%,var(--win));box-shadow:none;cursor:default}
+.mc.flag{color:var(--danger)}
+.mc.boom{background:var(--danger);color:#fff}
+
+.calc{display:grid;gap:8px;max-width:300px;width:100%;margin:0 auto}
+.disp{display:grid;align-content:end;min-height:84px;padding:12px 14px;border-radius:12px;background:var(--tile);text-align:right}
+.disp small{min-height:16px;color:var(--muted);font-size:12px}
+.disp b{font-family:var(--font-head);font-size:34px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
+.keys{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.keys button{height:48px;border:0;border-radius:10px;background:var(--tile);font-family:var(--font-head);font-size:18px;font-weight:500}
+.keys button.op{background:color-mix(in srgb,var(--c) 18%,var(--tile));color:color-mix(in srgb,var(--c) 70%,var(--fg))}
+.keys button[data-k="clr"]{color:var(--danger)}
+.keys button.eq{background:var(--accent);color:var(--accent-fg)}
+.keys button:active{filter:brightness(.92)}
+
+.notes{display:grid;gap:8px}
+.notes textarea{width:100%;height:240px;resize:none;border:1px solid var(--line);border-radius:10px;background:var(--win-bar);color:var(--fg);padding:12px;font:inherit;line-height:1.5;user-select:text;-webkit-user-select:text}
+.notes small{color:var(--muted)}
+
+.set{display:grid}
+.row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.row b{display:block;font-weight:600}
+.row span{color:var(--muted);font-size:12px}
+.row .btn+.btn{margin-left:6px}
+.seg{display:flex;flex-wrap:wrap;gap:2px;padding:3px;border-radius:10px;background:var(--tile)}
+.seg button{border:0;background:none;padding:6px 10px;border-radius:7px;font-size:12px;font-weight:500}
+.seg button[aria-checked="true"]{background:var(--accent);color:var(--accent-fg)}
+.sw{position:relative;flex:none;width:42px;height:24px;border-radius:12px;border:1px solid var(--line);background:var(--tile)}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:var(--muted);transition:transform .15s,background .15s}
+.sw[aria-checked="true"]{background:var(--accent)}
+.sw[aria-checked="true"]::after{transform:translateX(18px);background:var(--accent-fg)}
+
+.about{display:grid;gap:14px}
+.about h2{margin:0;font-family:var(--font-head);font-size:22px}
+.about p{margin:0;color:var(--muted);line-height:1.5}
+.about dl{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:0;padding:12px;border-radius:10px;background:var(--tile)}
+.about dt{color:var(--muted)}.about dd{margin:0;font-weight:500}
+
+/* barra superior, como a do macOS */
+#menubar{position:fixed;left:0;right:0;top:0;height:calc(var(--top-h) + env(safe-area-inset-top,0px));padding:env(safe-area-inset-top,0px) max(10px,env(safe-area-inset-right,0px)) 0 max(10px,env(safe-area-inset-left,0px));display:flex;align-items:center;gap:4px;background:var(--glass);border-bottom:1px solid var(--line);z-index:1000;font-size:13px}
+.mb{width:30px;height:24px;border:0;background:none;border-radius:7px;display:grid;place-items:center;color:var(--fg);padding:0}
+.mb:hover{background:var(--line)}
+.mb svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+#appname{font-weight:600;padding:0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.grow{flex:1}
+#clock{padding:0 6px;white-space:nowrap;font-variant-numeric:tabular-nums}
+#clock b{font-weight:600;margin-left:6px}
+@media (max-width:560px){#clock span{display:none}}
+
+/* dock flutuante, como a do macOS */
+body{--bar-h:calc(var(--dk) + 46px)}
+body[data-hide="1"]{--bar-h:14px}
+body[data-dock="p"]{--dk:38px}
+body[data-dock="m"]{--dk:50px}
+body[data-dock="g"]{--dk:64px}
+#taskbar{transition:transform .2s cubic-bezier(.55,.55,0,1),opacity .15s}
+body[data-hide="1"] #taskbar{transform:translateY(calc(100% + 24px));opacity:0;visibility:hidden;transition:transform .2s cubic-bezier(.55,.55,0,1),opacity .15s,visibility 0s .2s}
+body[data-hide="1"] #taskbar.show{transform:none;opacity:1;visibility:visible;transition:transform .3s cubic-bezier(0,0,0,1),opacity .2s,visibility 0s}
+#hot{position:fixed;left:0;right:0;bottom:0;height:8px;z-index:999;display:none}
+body[data-hide="1"] #hot{display:block}
+#taskbar{position:fixed;left:0;right:0;bottom:calc(10px + env(safe-area-inset-bottom,0px));display:flex;justify-content:center;padding:0 12px;pointer-events:none;z-index:1000}
+#dock{position:relative;isolation:isolate;pointer-events:auto;display:flex;align-items:flex-end;gap:6px;padding:9px 12px 11px;max-width:100%}
+#dockbg{position:absolute;left:50%;top:0;bottom:0;width:100%;transform:translateX(-50%);border-radius:26px;background:var(--glass);border:1px solid var(--line);box-shadow:var(--shadow);z-index:-1;pointer-events:none;transition:width .2s cubic-bezier(0,0,0,1)}
+#dock.zoom #dockbg{transition:none}
+.dk{position:relative;flex:none;width:var(--dk);height:var(--dk);border:0;background:none;padding:0;border-radius:30%;display:grid;place-items:center;transform-origin:50% 100%;will-change:transform;transition:transform .2s cubic-bezier(0,0,0,1)}
+#dock.zoom .dk{transition:none}
+.dk .tile{width:100%;height:100%}
+.dk .tile svg{width:72%;height:72%}
+.dk:active .tile{filter:brightness(.86)}
+.dk.start{--c:#6d7bff}
+.pip{position:absolute;bottom:-8px;left:50%;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:var(--muted);opacity:0;transition:opacity .15s}
+.dk.run .pip{opacity:1}
+.dk.act .pip{background:var(--c,var(--accent))}
+#dlabel{position:fixed;left:0;top:0;padding:4px 10px;border-radius:8px;background:var(--glass-solid);border:1px solid var(--line);box-shadow:var(--shadow);font-size:12px;font-weight:500;white-space:nowrap;pointer-events:none;z-index:1300;opacity:0;transition:opacity .12s}
+#dlabel.show{opacity:1}
+@media (max-width:560px){:root{--dk:40px}#dock{gap:4px;padding:8px 8px 10px}body[data-dock="p"]{--dk:32px}body[data-dock="m"]{--dk:40px}body[data-dock="g"]{--dk:46px}}
+
+/* menu iniciar: sobe da barra, como no Windows 11 */
+#start{position:fixed;left:50%;bottom:calc(var(--bar-h) + env(safe-area-inset-bottom,0px) + 10px);width:min(440px,calc(100vw - 24px));padding:16px;border-radius:16px;background:var(--glass);border:1px solid var(--line);box-shadow:var(--shadow);z-index:1100;display:grid;gap:14px;opacity:0;visibility:hidden;transform:translate(-50%,24px);transition:opacity .12s,transform .17s cubic-bezier(0,0,0,1),visibility 0s .17s}
+#start.open{opacity:1;visibility:visible;transform:translate(-50%,0);transition:opacity .12s,transform .25s cubic-bezier(0,0,0,1),visibility 0s}
+#q{width:100%;height:38px;border-radius:19px;border:1px solid var(--line);background:var(--win);color:var(--fg);padding:0 16px;font:inherit;user-select:text;-webkit-user-select:text}
+#start h3{margin:0;font-family:var(--font-head);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+#sgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+#sgrid .di{width:100%;height:auto;min-height:88px;align-content:start}
+#sfoot{display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid var(--line)}
+#sfoot span{font-weight:600}
+
+#toast{position:fixed;left:50%;bottom:calc(var(--bar-h) + env(safe-area-inset-bottom,0px) + 14px);transform:translate(-50%,10px);max-width:min(400px,calc(100vw - 32px));padding:10px 16px;border-radius:12px;background:var(--glass-solid);border:1px solid var(--line);box-shadow:var(--shadow);font-size:13px;opacity:0;pointer-events:none;transition:opacity .3s,transform .3s;z-index:1050;text-align:center}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+#fps{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + var(--top-h) + 8px);padding:4px 9px;border-radius:8px;background:var(--glass-solid);border:1px solid var(--line);font:600 11px var(--font-ui);font-variant-numeric:tabular-nums;z-index:1200;pointer-events:none}
+
+@media (prefers-reduced-motion:reduce){
+  #start,#start.open,.card .in,.dk,.pip,#toast,.tile2,.spot,#dockbg,#taskbar{transition-duration:.01s!important}
+}
+</style>
+
+<div id="wall" data-wall="aurora"></div>
+<div id="spotA" class="spot"></div>
+<div id="spotB" class="spot"></div>
+<div id="desktop">
+  <div id="icons"></div>
+  <div id="widget"><b>--:--</b><span></span></div>
+</div>
+
+<nav id="start" aria-label="Menu iniciar">
+  <input id="q" type="search" placeholder="Buscar apps" autocomplete="off" aria-label="Buscar apps">
+  <h3>Fixados</h3>
+  <div id="sgrid"></div>
+  <div id="sfoot"><span>Lume</span><button class="btn" id="closeall" type="button">Fechar janelas</button></div>
+</nav>
+
+<div id="toast" role="status"></div>
+<div id="fps" hidden></div>
+
+<header id="menubar">
+  <button class="mb" id="logo" type="button" aria-label="Menu iniciar"></button>
+  <b id="appname">Área de Trabalho</b>
+  <span class="grow"></span>
+  <button class="mb" id="sp" type="button" aria-label="Pesquisar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></svg></button>
+  <button class="mb" id="theme" type="button" aria-label="Alternar tema claro e escuro"></button>
+  <div id="clock"><span></span><b></b></div>
+</header>
+
+<footer id="taskbar">
+  <div id="dock"><i id="dockbg"></i><button class="dk start" id="startbtn" aria-label="Aplicativos" aria-expanded="false"><span class="tile"></span></button></div>
+</footer>
+<div id="hot" aria-hidden="true"></div>
+<div id="dlabel" aria-hidden="true"></div>
+
+<script>
+(() => {
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const mq = q => matchMedia(q).matches;
+const reduced = () => mq('(prefers-reduced-motion: reduce)');
+const coarse = mq('(pointer:coarse)');
+const store = {
+  get(k){ try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v){ try { localStorage.setItem(k, v); } catch (e) {} }
+};
+const svg = p => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+const art = p => `<svg viewBox="0 0 48 48">${p}</svg>`;
+const gear = (cx, cy, ro, ri, n) => { let d = ''; for (let i = 0; i < n * 4; i++) { const a = i / (n * 4) * 6.2832 - .39, r = (i % 4 === 1 || i % 4 === 2) ? ro : ri; d += (i ? 'L' : 'M') + (cx + Math.cos(a) * r).toFixed(1) + ' ' + (cy + Math.sin(a) * r).toFixed(1); } return d + 'Z'; };
+const star = (cx, cy, R, r) => { let d = ''; for (let i = 0; i < 10; i++) { const a = -1.5708 + i * .62832, q = i % 2 ? r : R; d += (i ? 'L' : 'M') + (cx + Math.cos(a) * q).toFixed(1) + ' ' + (cy + Math.sin(a) * q).toFixed(1); } return d + 'Z'; };
+const ICONS = {
+  snake: art(`<circle cx="12" cy="13" r="4.6" fill="#ef4444"/><circle cx="10.6" cy="11.6" r="1.3" fill="#fff" opacity=".6"/><path d="M12 8.6c0-2 1.2-3 3-3.2" stroke="#14532d" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M12 39.5h16c8 0 10-8 3-11l-12-5c-7-3-4-12 5-12h11" fill="none" stroke="rgba(0,50,20,.30)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 38h16c8 0 10-8 3-11l-12-5c-7-3-4-12 5-12h11" fill="none" stroke="#e6fff0" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 38h16c8 0 10-8 3-11l-12-5c-7-3-4-12 5-12h11" fill="none" stroke="#22c55e" stroke-width="2.4" stroke-linecap="round" stroke-dasharray=".1 6.5"/><circle cx="37" cy="10" r="6.2" fill="#e6fff0"/><circle cx="35.2" cy="8.4" r="2" fill="#14532d"/><circle cx="39.2" cy="8.4" r="2" fill="#14532d"/><circle cx="35.6" cy="7.9" r=".7" fill="#fff"/><circle cx="39.6" cy="7.9" r=".7" fill="#fff"/><path d="M41.5 12.5l4.5 2m-4.5-2l4.2-1.2" stroke="#ef4444" stroke-width="1.5" stroke-linecap="round"/>`),
+  g2048: art(`<g font-family="Space Grotesk,Inter,sans-serif" font-weight="700" text-anchor="middle"><rect x="6" y="7.5" width="17" height="17" rx="5" fill="rgba(80,20,0,.25)"/><rect x="25" y="7.5" width="17" height="17" rx="5" fill="rgba(80,20,0,.25)"/><rect x="6" y="26.5" width="17" height="17" rx="5" fill="rgba(80,20,0,.25)"/><rect x="25" y="26.5" width="17" height="17" rx="5" fill="rgba(80,20,0,.25)"/><rect x="6" y="6" width="17" height="17" rx="5" fill="#fff4cf"/><text x="14.5" y="18.4" font-size="11" fill="#9a5b00">2</text><rect x="25" y="6" width="17" height="17" rx="5" fill="#ffd166"/><text x="33.5" y="18.4" font-size="11" fill="#7a4300">4</text><rect x="6" y="25" width="17" height="17" rx="5" fill="#ff8fa3"/><text x="14.5" y="37.4" font-size="11" fill="#fff">8</text><rect x="25" y="25" width="17" height="17" rx="5" fill="#fff"/><text x="33.5" y="37" font-size="9.5" fill="#c2410c">16</text></g>`),
+  memory: art(`<g transform="rotate(-12 17 26)"><rect x="7" y="11" width="20" height="27" rx="4.5" fill="rgba(40,0,80,.28)" transform="translate(0 1.5)"/><rect x="7" y="11" width="20" height="27" rx="4.5" fill="#e9d5ff"/><path d="M17 17l5 7.5-5 7.5-5-7.5z" fill="#a855f7"/><path d="M17 20.5l2.6 4-2.6 4-2.6-4z" fill="#f3e8ff"/></g><g transform="rotate(10 31 26)"><rect x="20" y="9" width="20" height="27" rx="4.5" fill="rgba(40,0,80,.28)" transform="translate(0 1.5)"/><rect x="20" y="9" width="20" height="27" rx="4.5" fill="#fff"/><path d="${star(30, 22.5, 7.5, 3.2)}" fill="#f59e0b"/><path d="${star(30, 22.5, 4.2, 1.8)}" fill="#fde68a"/></g>`),
+  mines: art(`<path d="M24 14.5c0-4 3-6 7-5" stroke="#f3d9a8" stroke-width="2.2" fill="none" stroke-linecap="round"/><path d="${star(34.5, 8.5, 5.5, 2.4)}" fill="#fde047"/><path d="${star(34.5, 8.5, 3, 1.3)}" fill="#fff7c2"/><circle cx="24" cy="29.5" r="13" fill="rgba(60,0,0,.3)" transform="translate(0 2)"/><g stroke="#1e293b" stroke-width="3.4" stroke-linecap="round"><path d="M24 12.5v4M24 42.5v4M7 29.5h4M37 29.5h4M12 17.5l2.8 2.8M33.2 38.7l2.8 2.8M36 17.5l-2.8 2.8M14.8 38.7l-2.8 2.8"/></g><circle cx="24" cy="29.5" r="12" fill="#1e293b"/><rect x="20" y="14.5" width="8" height="5" rx="1.6" fill="#475569"/><ellipse cx="19.5" cy="24.5" rx="3.6" ry="2.6" fill="#fff" opacity=".5" transform="rotate(-35 19.5 24.5)"/>`),
+  calc: art(`<rect x="9" y="7.5" width="30" height="36" rx="7" fill="rgba(0,20,80,.3)"/><rect x="9" y="6" width="30" height="36" rx="7" fill="#f1f5f9"/><rect x="13" y="10" width="22" height="10" rx="3" fill="#0f3d66"/><text x="32.5" y="18" font-family="Space Grotesk,Inter,sans-serif" font-weight="700" font-size="8.5" text-anchor="end" fill="#7dd3fc">42</text><g fill="#cbd5e1"><rect x="13" y="23.5" width="6.4" height="6.4" rx="2"/><rect x="20.8" y="23.5" width="6.4" height="6.4" rx="2"/><rect x="13" y="31.5" width="6.4" height="6.4" rx="2"/><rect x="20.8" y="31.5" width="6.4" height="6.4" rx="2"/></g><rect x="28.6" y="23.5" width="6.4" height="6.4" rx="2" fill="#60a5fa"/><rect x="28.6" y="31.5" width="6.4" height="6.4" rx="2" fill="#f97316"/>`),
+  notes: art(`<rect x="9" y="9.5" width="30" height="35" rx="6" fill="rgba(0,50,50,.3)"/><rect x="9" y="8" width="30" height="35" rx="6" fill="#fde68a"/><path d="M9 14a6 6 0 0 1 6-6h18a6 6 0 0 1 6 6v3H9z" fill="#f59e0b"/><g fill="#7c2d12"><circle cx="17" cy="9" r="2.3"/><circle cx="24" cy="9" r="2.3"/><circle cx="31" cy="9" r="2.3"/></g><g fill="#fff" opacity=".7"><circle cx="16.4" cy="8.3" r=".8"/><circle cx="23.4" cy="8.3" r=".8"/><circle cx="30.4" cy="8.3" r=".8"/></g><path d="M14 24h20M14 30h20M14 36h11" stroke="#d97706" stroke-width="2.2" stroke-linecap="round" opacity=".6"/><g transform="rotate(38 37 36)"><rect x="34" y="20" width="6" height="22" rx="1.6" fill="#f43f5e"/><rect x="34" y="20" width="6" height="4" rx="1.6" fill="#fda4af"/><path d="M34 42h6l-3 5z" fill="#fde68a"/><path d="M36 45.5h2l-1 1.8z" fill="#374151"/></g>`),
+  settings: art(`<path d="${gear(24, 26, 19, 14.5, 8)}" fill="rgba(20,10,90,.35)"/><path d="${gear(24, 24, 19, 14.5, 8)}" fill="#e8eaf6"/><circle cx="24" cy="24" r="10.5" fill="none" stroke="#c7cbe6" stroke-width="2.2"/><circle cx="24" cy="24" r="6" fill="#4f46e5"/><circle cx="22.3" cy="22.3" r="1.8" fill="#fff" opacity=".45"/>`),
+  about: art(`<circle cx="24" cy="26" r="18" fill="rgba(80,0,40,.3)"/><circle cx="24" cy="24" r="18" fill="#fff"/><circle cx="24" cy="24" r="14.5" fill="#fce7f3"/><circle cx="24" cy="15.5" r="3" fill="#db2777"/><rect x="21.2" y="21" width="5.6" height="14" rx="2.8" fill="#db2777"/><path d="${star(39, 9, 4.6, 1.8)}" fill="#fff"/>`),
+  logo: svg('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor"/>'),
+  start: art(`<g><rect x="7" y="7" width="10" height="10" rx="3" fill="#ff6b6b"/><rect x="19" y="7" width="10" height="10" rx="3" fill="#ffd166"/><rect x="31" y="7" width="10" height="10" rx="3" fill="#06d6a0"/><rect x="7" y="19" width="10" height="10" rx="3" fill="#4cc9f0"/><rect x="19" y="19" width="10" height="10" rx="3" fill="#fff"/><rect x="31" y="19" width="10" height="10" rx="3" fill="#a78bfa"/><rect x="7" y="31" width="10" height="10" rx="3" fill="#f472b6"/><rect x="19" y="31" width="10" height="10" rx="3" fill="#fb923c"/><rect x="31" y="31" width="10" height="10" rx="3" fill="#34d399"/></g>`)
+};
+const APPS = {
+  snake:    { title: 'Cobrinha',       c: '#16a34a', w: 400, build: buildSnake },
+  g2048:    { title: '2048',           c: '#ea580c', w: 380, build: build2048 },
+  memory:   { title: 'Memória',        c: '#9333ea', w: 380, build: buildMemory },
+  mines:    { title: 'Campo Minado',   c: '#dc2626', w: 380, build: buildMines },
+  calc:     { title: 'Calculadora',    c: '#2563eb', w: 330, build: buildCalc },
+  notes:    { title: 'Notas',          c: '#0d9488', w: 430, build: buildNotes },
+  settings: { title: 'Configurações',  c: '#4f46e5', w: 450, build: buildSettings },
+  about:    { title: 'Sobre a LumeOS', c: '#db2777', w: 440, build: buildAbout }
+};
+const ORDER = ['snake', 'g2048', 'memory', 'mines', 'calc', 'notes', 'settings', 'about'];
+const PINNED = ['snake', 'g2048', 'memory', 'mines', 'calc', 'notes', 'settings'];
+
+const desktop = $('#desktop'), dock = $('#dock'), startEl = $('#start'), startBtn = $('#startbtn');
+$('.tile', startBtn).innerHTML = ICONS.start;
+$('#logo').innerHTML = ICONS.logo;
+const wins = new Map(), dockBtn = {};
+let z = 10, focused = null, spawnCount = 0;
+
+/* ---------- configurações ---------- */
+const settings = { blur: true, zoom: true, wall: 'destaque', fps: false, theme: 'light', dock: 'm', hide: false, icons: 'm', desk: true };
+try { Object.assign(settings, JSON.parse(store.get('lume-settings-v2') || '{}')); } catch (e) {}
+const fx = { blur: settings.blur };
+const saveSettings = () => store.set('lume-settings-v2', JSON.stringify(settings));
+
+/* cores lidas uma vez (getComputedStyle dentro de loop força recálculo de estilo) */
+const COL = {};
+function readColors(){
+  const cs = getComputedStyle(document.documentElement);
+  ['accent', 'win-bar', 'tile', 'danger', 'fg', 'muted', 'win', 'snake-a', 'snake-b'].forEach(k => { COL[k] = cs.getPropertyValue('--' + k).trim(); });
+}
+const isDark = () => document.documentElement.dataset.theme
+  ? document.documentElement.dataset.theme === 'dark' : mq('(prefers-color-scheme: dark)');
+
+/* medidor de FPS */
+const perf = { on: false, raf: 0, last: 0, t0: 0, frames: 0, worst: 0 };
+const fpsEl = $('#fps');
+function perfTick(ts){
+  if (!perf.on) return;
+  perf.raf = requestAnimationFrame(perfTick);
+  if (!perf.t0) perf.t0 = ts;
+  if (perf.last) perf.worst = Math.max(perf.worst, ts - perf.last);
+  perf.last = ts; perf.frames++;
+  if (ts - perf.t0 >= 500) {
+    fpsEl.textContent = `${Math.round(perf.frames * 1000 / (ts - perf.t0))} FPS · pior quadro ${Math.round(perf.worst)} ms`;
+    perf.frames = 0; perf.t0 = ts; perf.worst = 0;
+  }
+}
+function setFps(on){
+  perf.on = on; fpsEl.hidden = !on;
+  cancelAnimationFrame(perf.raf);
+  if (on) { perf.last = 0; perf.t0 = 0; perf.frames = 0; perf.worst = 0; perf.raf = requestAnimationFrame(perfTick); }
+}
+
+/* papel de parede: três fundos originais ou a imagem escolhida (guardada reduzida no navegador) */
+/* barra de tarefas: ocultar automático (aparece ao encostar na borda de baixo) */
+const taskbarEl = $('#taskbar'), hotEl = $('#hot');
+let hideT = 0, layoutKey = '';
+const showDock = () => { clearTimeout(hideT); taskbarEl.classList.add('show'); };
+const hideDock = () => { clearTimeout(hideT); hideT = setTimeout(() => { if (!startEl.classList.contains('open')) taskbarEl.classList.remove('show'); }, coarse ? 3000 : 350); };
+[hotEl, dock].forEach(el => { el.addEventListener('pointerenter', showDock); el.addEventListener('pointerleave', hideDock); });
+hotEl.addEventListener('pointerdown', showDock);
+const WALL_TONE = { aurora: 'dark', meia: 'dark', claro: 'light', destaque: 'dark' };
+/* cenas originais desenhadas em SVG (sem imagens de terceiros); trocam sozinhas no modo Destaque */
+const rng = seed => () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+const SCENES = [
+  { sky: ['#1b1446', '#6b2d8c', '#ff7e6b'], sun: { x: .7, y: .62, r: 70, c: '#ffd9a0' }, ridges: ['#4b2a74', '#35205f', '#221648', '#130d2e'] },
+  { sky: ['#050816', '#0d1b4a', '#1d3a7a'], moon: { x: .25, y: .25, r: 46 }, stars: 150, ridges: ['#12254f', '#0c1a3d', '#08122b', '#040a1a'] },
+  { sky: ['#2b0f3a', '#a3306b', '#ff9a5a'], sun: { x: .5, y: .7, r: 110, c: '#ffd27a' }, ridges: ['#7a2a5e', '#5a1f52', '#3a1442', '#220c2a'] },
+  { sky: ['#06232b', '#0d5560', '#3cc4b4'], sun: { x: .8, y: .38, r: 50, c: '#e6fff7' }, ridges: ['#0b4a52', '#083a44', '#062c35', '#031c24'] },
+  { sky: ['#0a0a14', '#1f1147', '#7c3aed'], aurora: true, stars: 100, ridges: ['#10102a', '#0a0a1c', '#05050f'] },
+  { sky: ['#101a2e', '#33507a', '#9bb7e0'], sun: { x: .3, y: .5, r: 60, c: '#fff3d6' }, ridges: ['#4a6896', '#365078', '#243a5c', '#142238'] }
+];
+function sceneUri(sc, seed){
+  const r = rng(seed), W = 1600, H = 900;
+  const ridge = (base, amp) => {
+    const p = [r() * 6.28, r() * 6.28, r() * 6.28], f = [1.2 + r() * 1.2, 3 + r() * 2, 7 + r() * 4];
+    let d = `M0 ${H}`;
+    for (let x = 0; x <= W; x += 20) {
+      const t = x / W, y = base - amp * (.55 * Math.sin(t * f[0] * 6.283 + p[0]) + .3 * Math.sin(t * f[1] * 6.283 + p[1]) + .15 * Math.sin(t * f[2] * 6.283 + p[2]));
+      d += ` L${x} ${y.toFixed(1)}`;
+    }
+    return d + ` L${W} ${H}Z`;
+  };
+  let g = `<defs><linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sc.sky[0]}"/><stop offset=".55" stop-color="${sc.sky[1]}"/><stop offset="1" stop-color="${sc.sky[2]}"/></linearGradient>`
+    + `<radialGradient id="o"><stop offset="0" stop-color="${sc.sun ? sc.sun.c : '#fff'}" stop-opacity=".95"/><stop offset=".35" stop-color="${sc.sun ? sc.sun.c : '#dfe6ff'}" stop-opacity=".35"/><stop offset="1" stop-color="${sc.sun ? sc.sun.c : '#dfe6ff'}" stop-opacity="0"/></radialGradient>`
+    + `<linearGradient id="a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#34d399" stop-opacity="0"/><stop offset=".5" stop-color="#34d399" stop-opacity=".5"/><stop offset="1" stop-color="#a78bfa" stop-opacity="0"/></linearGradient></defs>`
+    + `<rect width="${W}" height="${H}" fill="url(#s)"/>`;
+  for (let i = 0; i < (sc.stars || 0); i++) g += `<circle cx="${(r() * W).toFixed(0)}" cy="${(r() * H * .55).toFixed(0)}" r="${(r() * 1.4 + .3).toFixed(1)}" fill="#fff" opacity="${(r() * .6 + .3).toFixed(2)}"/>`;
+  if (sc.aurora) for (let k = 0; k < 3; k++) {
+    const y0 = 160 + k * 70, ph = r() * 6;
+    let d = `M0 ${y0}`;
+    for (let x = 0; x <= W; x += 40) d += ` L${x} ${(y0 + 50 * Math.sin(x / 210 + ph)).toFixed(0)}`;
+    g += `<path d="${d} L${W} ${y0 + 190} L0 ${y0 + 190}Z" fill="url(#a)" opacity="${(.8 - k * .2).toFixed(2)}"/>`;
+  }
+  const lit = sc.sun || sc.moon;
+  if (lit) g += `<circle cx="${lit.x * W}" cy="${lit.y * H}" r="${lit.r * 3}" fill="url(#o)"/><circle cx="${lit.x * W}" cy="${lit.y * H}" r="${lit.r * (sc.sun ? .55 : .5)}" fill="${sc.sun ? sc.sun.c : '#f3f6ff'}"/>`;
+  sc.ridges.forEach((c, i) => { g += `<path d="${ridge(560 + i * 85, 95 + i * 12)}" fill="${c}"/>`; });
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice">${g}</svg>`;
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+}
+const spot = { i: 0, cur: 1, timer: 0, uris: [] };
+const spotUri = i => spot.uris[i] || (spot.uris[i] = sceneUri(SCENES[i], 101 + i * 17));
+function spotShow(i){
+  const L = [$('#spotA'), $('#spotB')], nxt = L[1 - spot.cur], cur = L[spot.cur], uri = spotUri(i);
+  nxt.style.backgroundImage = `url("${uri}")`;
+  const go = () => { nxt.classList.add('on'); cur.classList.remove('on'); spot.cur = 1 - spot.cur; spot.i = i; };
+  const img = new Image(); img.src = uri;
+  (img.decode ? img.decode() : Promise.resolve()).then(go, go);
+}
+function startSpot(){
+  if (spot.timer) return;
+  spotShow(spot.i);
+  spot.timer = setInterval(() => { if (!document.hidden) spotShow((spot.i + 1) % SCENES.length); }, 40000);
+}
+function stopSpot(){
+  clearInterval(spot.timer); spot.timer = 0;
+  $('#spotA').classList.remove('on'); $('#spotB').classList.remove('on');
+}
+function spotNext(){
+  if (settings.wall !== 'destaque') { settings.wall = 'destaque'; saveSettings(); applySettings(); return; }
+  spotShow((spot.i + 1) % SCENES.length);
+}
+let wallImg = store.get('lume-wall-img') || '';
+function applyWall(){
+  const wall = $('#wall');
+  if (settings.wall === 'custom' && !wallImg) settings.wall = 'aurora';
+  wall.dataset.wall = settings.wall === 'destaque' ? 'meia' : settings.wall;
+  if (settings.wall === 'destaque') startSpot(); else stopSpot();
+  wall.style.backgroundImage = settings.wall === 'custom' ? `url("${wallImg}")` : '';
+  document.body.dataset.tone = settings.wall === 'custom' ? (store.get('lume-wall-tone') || 'dark') : WALL_TONE[settings.wall] || 'dark';
+}
+function pickWall(file){
+  if (!file || !/^image\//.test(file.type)) { toast('Escolha um arquivo de imagem.', 3000); return; }
+  const url = URL.createObjectURL(file), img = new Image();
+  img.onload = () => {
+    const k = Math.min(1, 1920 / Math.max(img.width, img.height));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(img.width * k)); c.height = Math.max(1, Math.round(img.height * k));
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    let data = '', lum = 0;
+    try {
+      data = c.toDataURL('image/jpeg', .82);
+      const s = document.createElement('canvas'); s.width = s.height = 16;
+      const sx = s.getContext('2d'); sx.drawImage(c, 0, 0, 16, 16);
+      const px = sx.getImageData(0, 0, 16, 16).data;
+      for (let i = 0; i < px.length; i += 4) lum += .2126 * px[i] + .7152 * px[i + 1] + .0722 * px[i + 2];
+      lum /= 256 * 255;
+    } catch (e) { data = ''; }
+    URL.revokeObjectURL(url);
+    if (!data) { toast('Não consegui ler essa imagem.', 3000); return; }
+    wallImg = data;
+    store.set('lume-wall-img', data); store.set('lume-wall-tone', lum > .55 ? 'light' : 'dark');
+    settings.wall = 'custom'; saveSettings(); applySettings();
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); toast('Não consegui abrir essa imagem.', 3000); };
+  img.src = url;
+}
+function clearWall(){
+  wallImg = ''; store.set('lume-wall-img', ''); store.set('lume-wall-tone', '');
+  if (settings.wall === 'custom') settings.wall = 'aurora';
+  saveSettings(); applySettings();
+}
+
+function applySettings(){
+  if (settings.theme === 'auto') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = settings.theme;
+  applyWall();
+  const bd = document.body.dataset;
+  bd.dock = settings.dock; bd.icons = settings.icons; bd.desk = settings.desk ? '1' : '0'; bd.hide = settings.hide ? '1' : '0';
+  if (settings.hide) { clearTimeout(hideT); taskbarEl.classList.remove('show'); }
+  const lk = settings.dock + settings.hide;
+  if (lk !== layoutKey) { const first = layoutKey === ''; layoutKey = lk; if (!first) requestAnimationFrame(() => dispatchEvent(new Event('resize'))); }
+  fx.blur = settings.blur;
+  setFps(settings.fps);
+  readColors();
+  wins.forEach(w => w.game.redraw && w.game.redraw());
+  syncThemeBtn();
+  const sw = wins.get('settings'); if (sw && sw.game.sync) sw.game.sync();
+}
+
+/* ---------- dock, ícones e menu iniciar ---------- */
+function makeDock(id){
+  if (dockBtn[id]) return dockBtn[id];
+  const a = APPS[id], b = document.createElement('button');
+  b.className = 'dk'; b.setAttribute('aria-label', a.title); b.style.setProperty('--c', a.c);
+  b.innerHTML = `<span class="tile" style="--c:${a.c}">${ICONS[id]}</span><i class="pip"></i>`;
+  b.onclick = () => dockClick(id);
+  dock.append(b); dockBtn[id] = b;
+  return b;
+}
+PINNED.forEach(makeDock);
+function appIcon(id, onOpen, useDbl){
+  const a = APPS[id], b = document.createElement('button');
+  b.className = 'di'; b.dataset.name = a.title.toLowerCase();
+  b.innerHTML = `<span class="tile" style="--c:${a.c}">${ICONS[id]}</span><span>${a.title}</span>`;
+  if (useDbl && !coarse) {
+    b.addEventListener('dblclick', onOpen);
+    b.addEventListener('keydown', e => { if (e.key === 'Enter') onOpen(); });
+  } else b.addEventListener('click', onOpen);
+  return b;
+}
+ORDER.forEach(id => $('#icons').append(appIcon(id, () => openApp(id), true)));
+ORDER.forEach(id => $('#sgrid').append(appIcon(id, () => { toggleStart(false); openApp(id); }, false)));
+$('#q').addEventListener('input', e => {
+  const v = e.target.value.trim().toLowerCase();
+  document.querySelectorAll('#sgrid .di').forEach(el => { el.hidden = !!v && !el.dataset.name.includes(v); });
+});
+$('#q').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const first = [...document.querySelectorAll('#sgrid .di')].find(el => !el.hidden);
+  if (first) first.click();
+});
+function toggleStart(force){
+  const open = force === undefined ? !startEl.classList.contains('open') : force;
+  startEl.classList.toggle('open', open);
+  startBtn.setAttribute('aria-expanded', String(open));
+  if (open) {
+    $('#toast').classList.remove('show');
+    $('#q').value = ''; $('#q').dispatchEvent(new Event('input'));
+    if (!coarse) $('#q').focus({ preventScroll: true });
+  }
+}
+startBtn.onclick = e => { e.stopPropagation(); toggleStart(); };
+$('#sp').onclick = e => { e.stopPropagation(); toggleStart(true); };
+$('#logo').onclick = e => { e.stopPropagation(); toggleStart(); };
+document.addEventListener('pointerdown', e => {
+  if (startEl.classList.contains('open') && !startEl.contains(e.target) && !startBtn.contains(e.target) && !$('#sp').contains(e.target) && !$('#logo').contains(e.target)) toggleStart(false);
+});
+$('#closeall').onclick = () => { toggleStart(false); [...wins.values()].forEach(closeWin); };
+
+function dockClick(id){
+  const w = wins.get(id);
+  if (!w) return openApp(id);
+  if (w.min) return restore(w);
+  if (focused === w) return minimize(w);
+  focus(w);
+}
+function updateDock(){
+  $('#appname').textContent = focused && !focused.min ? APPS[focused.id].title : 'Área de Trabalho';
+  Object.keys(dockBtn).forEach(id => {
+    const w = wins.get(id), b = dockBtn[id];
+    b.classList.toggle('run', !!w);
+    b.classList.toggle('act', !!w && !w.min && focused === w);
+  });
+}
+function launchBounce(btn){
+  if (reduced() || !btn) return;
+  $('.tile', btn).animate([{ transform: 'translateY(0)' }, { transform: 'translateY(-18px)', offset: .3 }, { transform: 'translateY(0)', offset: .55 },
+    { transform: 'translateY(-9px)', offset: .75 }, { transform: 'translateY(0)' }], { duration: 620, easing: 'ease-out' });
+}
+/* zoom da dock estilo macOS: só transform, uma leitura e uma escrita por quadro */
+const dockBg = $('#dockbg'), dlabel = $('#dlabel');
+const ZOOM = { max: .6, reach: 125 };
+let zRaf = 0, zX = 0, zIn = false, zHover = null;
+function zoomFrame(){
+  zRaf = 0;
+  const items = [...dock.querySelectorAll('.dk')], dr = dock.getBoundingClientRect();
+  const on = settings.zoom, S = [], Wd = [];
+  let extra = 0;
+  items.forEach(it => {
+    const w = it.offsetWidth, cx = dr.left + it.offsetLeft + w / 2;
+    const t = on ? Math.max(0, 1 - Math.abs(zX - cx) / ZOOM.reach) : 0;
+    const sc = 1 + ZOOM.max * (t * t * (3 - 2 * t));
+    S.push(sc); Wd.push(w); extra += (sc - 1) * w;
+  });
+  let acc = 0, lx = 0, ly = 0;
+  items.forEach((it, i) => {
+    const ex = (S[i] - 1) * Wd[i], shift = acc + ex / 2 - extra / 2;
+    acc += ex;
+    it.style.transform = `translate3d(${shift.toFixed(1)}px,0,0) scale(${S[i].toFixed(3)})`;
+    if (it === zHover) { lx = dr.left + it.offsetLeft + Wd[i] / 2 + shift; ly = dr.top + 9 + it.offsetHeight - it.offsetHeight * S[i] - 6; }
+  });
+  dockBg.style.width = `calc(100% + ${extra.toFixed(1)}px)`;
+  if (zHover) {
+    dlabel.textContent = zHover.getAttribute('aria-label');
+    dlabel.style.transform = `translate(${lx.toFixed(1)}px,${ly.toFixed(1)}px) translate(-50%,-100%)`;
+    dlabel.classList.add('show');
+  } else dlabel.classList.remove('show');
+}
+if (!coarse) {
+  dock.addEventListener('pointermove', e => {
+    if (e.pointerType !== 'mouse') return;
+    zX = e.clientX; zHover = e.target.closest('.dk');
+    if (!zIn) { zIn = true; dock.classList.add('zoom'); }
+    if (!zRaf) zRaf = requestAnimationFrame(zoomFrame);
+  });
+  dock.addEventListener('pointerleave', () => {
+    zIn = false; zHover = null; cancelAnimationFrame(zRaf); zRaf = 0;
+    dock.classList.remove('zoom');
+    dock.querySelectorAll('.dk').forEach(it => { it.style.transform = ''; });
+    dockBg.style.width = ''; dlabel.classList.remove('show');
+  });
+}
+function bounce(btn, dir){
+  if (reduced() || !btn) return;
+  const t = $('.tile', btn);
+  t.animate([{ transform: 'translateY(0)' }, { transform: `translateY(${dir * 6}px)`, offset: .4 }, { transform: 'translateY(0)' }],
+    { duration: 300, easing: 'cubic-bezier(.3,.7,.4,1)' });
+}
+
+/* ---------- janelas ---------- */
+function openApp(id){
+  const old = wins.get(id);
+  if (old) return old.min ? restore(old) : focus(old);
+  const app = APPS[id], btn = makeDock(id);
+  launchBounce(btn);
+  const el = document.createElement('section');
+  el.className = 'win'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', app.title);
+  el.style.setProperty('--c', app.c);
+  el.innerHTML = `<header class="bar"><span class="ico">${ICONS[id]}</span><span class="ttl">${app.title}</span>
+    <div class="ctl">
+      <button data-a="min" aria-label="Minimizar">${svg('<path d="M5 12h14"/>')}</button>
+      <button data-a="max" aria-label="Maximizar">${svg('<rect x="5" y="5" width="14" height="14" rx="2"/>')}</button>
+      <button data-a="close" aria-label="Fechar">${svg('<path d="M6 6l12 12M18 6L6 18"/>')}</button>
+    </div></header><div class="body"></div>`;
+  el.style.width = Math.min(app.w, desktop.clientWidth - 16) + 'px';
+  desktop.append(el);
+  const w = { id, el, body: $('.body', el), min: false, max: false, busy: true, rect: null, game: null, btn };
+  wins.set(id, w);
+  w.game = app.build(w.body, w) || {};
+  const off = ((spawnCount++ % 5) - 2) * 34;
+  const W = desktop.clientWidth, H = desktop.clientHeight;
+  el.style.left = Math.max(8, Math.round((W - el.offsetWidth) / 2 + off)) + 'px';
+  el.style.top = Math.max(8, Math.min(Math.round((H - el.offsetHeight) / 2 - 10 + off), H - el.offsetHeight - 8)) + 'px';
+  el.addEventListener('pointerdown', () => { if (focused !== w && !w.min && !w.busy) focus(w); });
+  el.addEventListener('click', e => {
+    const b = e.target.closest('.ctl button'); if (!b) return;
+    const a = b.dataset.a;
+    if (a === 'min') minimize(w); else if (a === 'max') toggleMax(w); else closeWin(w);
+  });
+  dragSetup(w);
+  el.style.zIndex = ++z; el.style.opacity = '0.01';
+  updateDock();
+  /* dois quadros de pré-visualização: o navegador monta a camada antes de a animação começar */
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (wins.get(id) !== w) return;
+    el.style.opacity = '';
+    const frames = reduced() ? [{ opacity: 0 }, { opacity: 1 }] : genieFrames(w).reverse().map(k => ({ ...k, offset: 1 - k.offset }));
+    el.animate(frames, { duration: reduced() ? 1 : 280, easing: 'cubic-bezier(0,0,0,1)' }).onfinish = () => { w.busy = false; };
+    focus(w);
+  }));
+}
+function focus(w){
+  z++; w.el.style.zIndex = z;
+  wins.forEach(o => { o.el.classList.toggle('active', o === w); if (o !== w && o.game.pause) o.game.pause(); });
+  focused = w;
+  if (w.game.resume) w.game.resume();
+  updateDock();
+}
+const fxBlurPx = 8;
+function genieFrames(w){
+  const r = w.el.getBoundingClientRect(), t = w.btn.getBoundingClientRect();
+  const dx = t.left + t.width / 2 - (r.left + r.width / 2);
+  const dy = t.top + t.height / 2 - (r.top + r.height / 2);
+  const s = Math.max(.2, t.width / r.width);
+  const a = { transform: 'translate3d(0,0,0) scale(1)', opacity: 1, offset: 0 };
+  const b = { transform: `translate3d(${dx}px,${dy}px,0) scale(${s})`, opacity: 0, offset: 1 };
+  if (fx.blur) { a.filter = 'blur(0px)'; b.filter = `blur(${fxBlurPx}px)`; }
+  return [a, b];
+}
+function minimize(w){
+  if (w.min || w.busy) return;
+  if (w.wobbleStop) w.wobbleStop();
+  w.busy = true; w.min = true;
+  if (focused === w) focused = null;
+  const done = () => {
+    w.el.style.opacity = '0'; w.el.style.pointerEvents = 'none'; w.el.inert = true;
+    anim.cancel(); w.busy = false;
+    if (w.game.pause) w.game.pause();
+  };
+  const anim = reduced()
+    ? w.el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: 'forwards' })
+    : w.el.animate(genieFrames(w), { duration: 240, easing: 'cubic-bezier(.55,.55,0,1)', fill: 'forwards' });
+  anim.onfinish = done;
+  bounce(w.btn, 1);
+  updateDock();
+}
+function restore(w){
+  if (!w.min || w.busy) return;
+  w.busy = true; w.min = false;
+  const frames = reduced() ? [{ opacity: 0 }, { opacity: 1 }] : genieFrames(w).reverse().map(k => ({ ...k, offset: 1 - k.offset }));
+  w.el.inert = false; w.el.style.pointerEvents = ''; w.el.style.opacity = ''; w.el.style.zIndex = ++z;
+  w.el.animate(frames, { duration: reduced() ? 120 : 280, easing: 'cubic-bezier(0,0,0,1)' }).onfinish = () => { w.busy = false; };
+  bounce(w.btn, -1);
+  requestAnimationFrame(() => focus(w));
+}
+function closeWin(w){
+  if (!wins.has(w.id)) return;
+  if (w.wobbleStop) w.wobbleStop();
+  wins.delete(w.id);
+  if (w.game.destroy) w.game.destroy();
+  if (focused === w) focused = null;
+  const rm = () => {
+    w.el.remove();
+    if (!PINNED.includes(w.id) && dockBtn[w.id]) { dockBtn[w.id].remove(); delete dockBtn[w.id]; }
+    updateDock();
+  };
+  if (w.min) return rm();
+  w.el.animate([{ transform: 'none', opacity: 1 }, { transform: 'scale(.96)', opacity: 0 }], { duration: reduced() ? 1 : 150, easing: 'cubic-bezier(0,0,0,1)' }).onfinish = rm;
+  updateDock();
+}
+/* maximizar com FLIP: o tamanho final é aplicado de uma vez e a animação usa só transform */
+function toggleMax(w){
+  if (w.busy) return;
+  if (w.wobbleStop) w.wobbleStop();
+  const el = w.el, first = el.getBoundingClientRect();
+  if (!w.max) {
+    w.rect = { l: el.style.left, t: el.style.top, w: el.style.width };
+    Object.assign(el.style, { left: '0px', top: '0px', width: desktop.clientWidth + 'px', height: desktop.clientHeight + 'px' });
+    el.classList.add('max'); w.max = true;
+  } else {
+    Object.assign(el.style, { left: w.rect.l, top: w.rect.t, width: w.rect.w, height: '' });
+    el.classList.remove('max'); w.max = false;
+  }
+  const last = el.getBoundingClientRect();
+  w.busy = true; el.style.transformOrigin = '0 0';
+  const k = [{ transform: `translate(${first.left - last.left}px,${first.top - last.top}px) scale(${first.width / last.width},${first.height / last.height})` }, { transform: 'none' }];
+  el.animate(k, { duration: reduced() ? 1 : 240, easing: 'cubic-bezier(0,0,0,1)' }).onfinish = () => { el.style.transformOrigin = ''; w.busy = false; };
+}
+/* arrastar: só transform. A janela balança como se estivesse pendurada no ponto onde você a pegou (mola amortecida) */
+function dragSetup(w){
+  const bar = $('.bar', w.el), el = w.el;
+  let sx = 0, sy = 0, dx = 0, dy = 0, drag = false, raf = 0, lim = null, last = 0;
+  let px = 0, pt = 0, vx = 0, ang = 0, vang = 0;
+  const K = 150, C = 11;
+  const clearFx = () => { el.style.transform = ''; el.style.transformOrigin = ''; };
+  const wob = () => reduced() ? '' : `rotate(${ang.toFixed(2)}deg) skewX(${(-ang * .3).toFixed(2)}deg)`;
+  function frame(ts){
+    raf = requestAnimationFrame(frame);
+    const dt = Math.min(.034, last ? (ts - last) / 1000 : .016); last = ts;
+    vx *= Math.exp(-dt * 7);
+    const target = Math.max(-7, Math.min(7, vx * .011));
+    vang += (-K * (ang - target) - C * vang) * dt;
+    ang += vang * dt;
+    if (drag) el.style.transform = `translate3d(${dx}px,${dy}px,0) ${wob()}`;
+    else if (Math.abs(ang) < .04 && Math.abs(vang) < .3) { cancelAnimationFrame(raf); raf = 0; ang = vang = 0; clearFx(); }
+    else el.style.transform = wob();
+  }
+  w.wobbleStop = () => { cancelAnimationFrame(raf); raf = 0; drag = false; ang = vang = vx = 0; clearFx(); };
+  bar.addEventListener('pointerdown', e => {
+    if (e.target.closest('button') || w.max || w.busy || e.button > 0) return;
+    w.wobbleStop();
+    drag = true; sx = e.clientX; sy = e.clientY; dx = dy = 0; px = e.clientX; pt = e.timeStamp; vx = 0; last = 0;
+    const r = el.getBoundingClientRect();
+    el.style.transformOrigin = `${e.clientX - r.left}px ${e.clientY - r.top}px`;
+    const W = desktop.clientWidth, H = desktop.clientHeight, l = el.offsetLeft, t = el.offsetTop, ww = el.offsetWidth;
+    lim = { x0: 120 - ww - l, x1: W - 120 - l, y0: -t, y1: H - 40 - t };
+    bar.setPointerCapture(e.pointerId);
+    raf = requestAnimationFrame(frame);
+  });
+  bar.addEventListener('pointermove', e => {
+    if (!drag) return;
+    dx = Math.max(lim.x0, Math.min(lim.x1, e.clientX - sx));
+    dy = Math.max(lim.y0, Math.min(lim.y1, e.clientY - sy));
+    const dtm = Math.max(1, e.timeStamp - pt);
+    const v = Math.max(-4000, Math.min(4000, (e.clientX - px) / dtm * 1000));
+    vx = vx * .5 + v * .5; px = e.clientX; pt = e.timeStamp;
+  });
+  const end = () => {
+    if (!drag) return;
+    drag = false;
+    el.style.left = (el.offsetLeft + dx) + 'px';
+    el.style.top = (el.offsetTop + dy) + 'px';
+    el.style.transform = wob();
+    if (!raf) raf = requestAnimationFrame(frame);
+  };
+  bar.addEventListener('pointerup', end); bar.addEventListener('pointercancel', end);
+  bar.addEventListener('dblclick', e => { if (!e.target.closest('button')) toggleMax(w); });
+}
+let rzRaf = 0;
+addEventListener('resize', () => {
+  if (rzRaf) return;
+  rzRaf = requestAnimationFrame(() => {
+    rzRaf = 0;
+    const W = desktop.clientWidth, H = desktop.clientHeight;
+    wins.forEach(w => {
+      if (w.max) { w.el.style.width = W + 'px'; w.el.style.height = H + 'px'; return; }
+      w.el.style.width = Math.min(APPS[w.id].w, W - 16) + 'px';
+      w.el.style.left = Math.max(0, Math.min(w.el.offsetLeft, W - Math.min(w.el.offsetWidth, W))) + 'px';
+      w.el.style.top = Math.max(0, Math.min(w.el.offsetTop, H - 40)) + 'px';
+    });
+  });
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') toggleStart(false);
+  if (e.target.closest && e.target.closest('input,textarea')) return;
+  const w = focused;
+  if (w && !w.min && w.game.key && w.game.key(e)) e.preventDefault();
+});
+
+/* ---------- relógio, tema, aviso ---------- */
+function tick(){
+  const d = new Date();
+  const t = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const ds = d.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/\./g, '');
+  $('#clock b').textContent = t; $('#clock span').textContent = ds;
+  $('#widget b').textContent = t;
+  $('#widget span').textContent = d.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+tick(); setInterval(tick, 15000);
+const themeBtn = $('#theme');
+const moon = svg('<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>');
+const sun = svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/>');
+function syncThemeBtn(){ themeBtn.innerHTML = isDark() ? sun : moon; }
+themeBtn.onclick = () => { settings.theme = isDark() ? 'light' : 'dark'; saveSettings(); applySettings(); };
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (settings.theme === 'auto') applySettings(); });
+function toast(msg, ms){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), ms);
+}
+
+/* ---------- jogo: Cobrinha (passo fixo + interpolação em requestAnimationFrame) ---------- */
+function buildSnake(body){
+  body.innerHTML = `<div class="game snake">
+    <div class="hud"><div><span>Pontos</span><b data-s>0</b></div><div><span>Recorde</span><b data-b>0</b></div></div>
+    <div class="stage"><canvas></canvas><div class="ov"><p data-m></p><button class="btn pri" data-go type="button"></button></div></div>
+    <div class="pad"><button data-d="left" aria-label="Esquerda">←</button><button data-d="up" aria-label="Cima">↑</button><button data-d="down" aria-label="Baixo">↓</button><button data-d="right" aria-label="Direita">→</button></div></div>`;
+  const N = 18, cv = $('canvas', body), ctx = cv.getContext('2d', { alpha: false });
+  const bg = document.createElement('canvas'), bgx = bg.getContext('2d');
+  const ov = $('.ov', body), mEl = $('[data-m]', body), go = $('[data-go]', body), sEl = $('[data-s]', body), bEl = $('[data-b]', body);
+  const V = { left: { x: -1, y: 0 }, right: { x: 1, y: 0 }, up: { x: 0, y: -1 }, down: { x: 0, y: 1 } };
+  let sn, old, dir, queue, food, score = 0, best = +store.get('lume-snake-best') || 0, state = 'idle', raf = 0, last = 0, acc = 0, px = 1;
+  const stepMs = () => Math.max(62, 135 - score * 3);
+  const msg = (text, btn) => { ov.hidden = false; mEl.textContent = text; go.textContent = btn; };
+  const hud = () => { sEl.textContent = score; bEl.textContent = best; };
+  function spawn(){
+    let p, k = 0;
+    do { p = { x: Math.random() * N | 0, y: Math.random() * N | 0 }; } while (k++ < 500 && sn.some(s => s.x === p.x && s.y === p.y));
+    food = p;
+  }
+  function drawBg(){
+    bg.width = bg.height = cv.width;
+    bgx.fillStyle = COL['snake-a']; bgx.fillRect(0, 0, bg.width, bg.width);
+    bgx.fillStyle = COL['snake-b'];
+    for (let x = 0; x < N; x++) for (let y = 0; y < N; y++) if ((x + y) & 1) bgx.fillRect(x * px, y * px, px, px);
+  }
+  function rr(x, y, w, h, r){
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h);
+    ctx.fill();
+  }
+  function draw(a){
+    ctx.drawImage(bg, 0, 0);
+    const s = px, pulse = 1 + .08 * Math.sin(performance.now() / 180);
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath(); ctx.arc((food.x + .5) * s, (food.y + .5) * s, s * .32 * pulse, 0, 6.2832); ctx.fill();
+    ctx.fillStyle = APPS.snake.c;
+    for (let i = sn.length - 1; i >= 0; i--) {
+      const p = sn[i], f = old[Math.min(i, old.length - 1)];
+      const x = f.x + (p.x - f.x) * a, y = f.y + (p.y - f.y) * a;
+      ctx.globalAlpha = Math.max(.55, 1 - i * .025);
+      rr(x * s + s * .07, y * s + s * .07, s * .86, s * .86, s * .26);
+    }
+    ctx.globalAlpha = 1;
+  }
+  function size(){
+    const dpr = Math.min(devicePixelRatio || 1, 2), w = Math.max(120, Math.round(cv.clientWidth * dpr));
+    if (cv.width !== w) cv.width = cv.height = w;
+    px = cv.width / N; drawBg(); draw(1);
+  }
+  const ro = new ResizeObserver(size); ro.observe(cv);
+  function reset(){
+    sn = [{ x: 9, y: 9 }, { x: 8, y: 9 }, { x: 7, y: 9 }]; old = sn.map(p => ({ ...p }));
+    dir = V.right; queue = []; score = 0; spawn(); state = 'idle'; stopLoop();
+    msg('Use as setas, WASD ou os botões', 'Jogar'); draw(1); hud();
+  }
+  function frame(ts){
+    raf = requestAnimationFrame(frame);
+    if (!last) last = ts;
+    const dt = Math.min(100, ts - last); last = ts; acc += dt;
+    let ms = stepMs();
+    while (acc >= ms && state === 'run') { acc -= ms; step(); ms = stepMs(); }
+    if (state === 'run') draw(acc / ms);
+  }
+  function startLoop(){ cancelAnimationFrame(raf); last = 0; raf = requestAnimationFrame(frame); }
+  function stopLoop(){ cancelAnimationFrame(raf); raf = 0; }
+  function start(){ if (state === 'over') reset(); state = 'run'; ov.hidden = true; acc = 0; startLoop(); }
+  function pause(){ if (state === 'run') { state = 'pause'; stopLoop(); msg('Pausado', 'Continuar'); } }
+  function step(){
+    if (queue.length) dir = queue.shift();
+    old = sn.slice();
+    const h = { x: sn[0].x + dir.x, y: sn[0].y + dir.y };
+    const eat = h.x === food.x && h.y === food.y;
+    const chk = eat ? sn : sn.slice(0, -1);
+    if (h.x < 0 || h.y < 0 || h.x >= N || h.y >= N || chk.some(s => s.x === h.x && s.y === h.y)) {
+      state = 'over'; stopLoop();
+      if (score > best) { best = score; store.set('lume-snake-best', best); }
+      msg(`Fim de jogo: ${score} pontos`, 'Jogar de novo'); hud(); draw(1); return;
+    }
+    sn = [h, ...sn];
+    if (eat) { score++; spawn(); hud(); } else sn.pop();
+  }
+  function setDir(n){
+    const v = V[n], ref = queue.length ? queue[queue.length - 1] : dir;
+    if ((v.x === -ref.x && v.y === -ref.y) || (v.x === ref.x && v.y === ref.y)) return;
+    if (queue.length < 3) queue.push(v);
+  }
+  const keys = { ArrowLeft: 'left', a: 'left', A: 'left', ArrowRight: 'right', d: 'right', D: 'right', ArrowUp: 'up', w: 'up', W: 'up', ArrowDown: 'down', s: 'down', S: 'down' };
+  go.onclick = start;
+  body.querySelectorAll('.pad button').forEach(b => b.onclick = () => { setDir(b.dataset.d); if (state !== 'run') start(); });
+  let sx = 0, sy = 0;
+  const stage = $('.stage', body);
+  stage.addEventListener('pointerdown', e => { sx = e.clientX; sy = e.clientY; });
+  stage.addEventListener('pointerup', e => {
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;
+    setDir(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+    if (state !== 'run') start();
+  });
+  const vis = () => { if (document.hidden) pause(); };
+  document.addEventListener('visibilitychange', vis);
+  reset();
+  return {
+    key(e){
+      if (keys[e.key]) { setDir(keys[e.key]); if (state !== 'run') start(); return true; }
+      if (e.key === ' ') { state === 'run' ? pause() : start(); return true; }
+      return false;
+    },
+    pause, redraw(){ drawBg(); draw(1); },
+    destroy(){ stopLoop(); ro.disconnect(); document.removeEventListener('visibilitychange', vis); }
+  };
+}
+
+/* ---------- jogo: 2048 (peças deslizam por transform) ---------- */
+function build2048(body){
+  body.innerHTML = `<div class="game g2048">
+    <div class="hud"><div><span>Pontos</span><b data-s>0</b></div><div><span>Recorde</span><b data-b>0</b></div><button class="btn" data-n type="button">Novo jogo</button></div>
+    <div class="stage"><div class="board"><div class="bg">${'<i class="cell"></i>'.repeat(16)}</div><div class="tiles"></div></div><div class="ov" hidden><p data-m></p><button class="btn pri" data-go type="button"></button></div></div>
+    <p class="hint">Use as setas do teclado ou deslize sobre o tabuleiro.</p></div>`;
+  const tilesEl = $('.tiles', body), board = $('.board', body), ov = $('.ov', body), mEl = $('[data-m]', body), go = $('[data-go]', body);
+  let grid, score, best = +store.get('lume-2048-best') || 0, won, over, busy = false, pending = null, timers = [];
+  const hud = () => { $('[data-s]', body).textContent = score; $('[data-b]', body).textContent = best; };
+  const TC = [['#fff0c2', '#7a4b00'], ['#ffe08a', '#7a4b00'], ['#fb923c', '#431407'], ['#ea580c', '#fff'], ['#e11d48', '#fff'],
+    ['#be185d', '#fff'], ['#9333ea', '#fff'], ['#7c3aed', '#fff'], ['#4f46e5', '#fff'], ['#2563eb', '#fff'], ['#0d9488', '#fff']];
+  function paint(t){
+    const c = TC[Math.log2(t.v) - 1] || ['#0f172a', '#fff'];
+    t.el.textContent = t.v;
+    t.el.style.background = c[0]; t.el.style.color = c[1];
+    t.el.classList.toggle('sm', t.v >= 1024);
+  }
+  function place(t){
+    const r = t.p >> 2, c = t.p & 3;
+    t.el.style.transform = `translate(calc(${c} * (100% + var(--gap))),calc(${r} * (100% + var(--gap))))`;
+  }
+  function spawn(){
+    const e = []; for (let i = 0; i < 16; i++) if (!grid[i]) e.push(i);
+    if (!e.length) return;
+    const p = e[Math.random() * e.length | 0], v = Math.random() < .9 ? 2 : 4;
+    const el = document.createElement('div'); el.className = 'tile2'; tilesEl.append(el);
+    const t = { p, v, el }; grid[p] = t; paint(t); place(t);
+    if (!reduced()) el.animate([{ scale: .6, opacity: 0 }, { scale: 1, opacity: 1 }], { duration: 160, easing: 'cubic-bezier(0,0,0,1)' });
+  }
+  function reset(){
+    timers.forEach(clearTimeout); timers = [];
+    tilesEl.textContent = ''; grid = Array(16).fill(null); score = 0; won = false; over = false; busy = false; pending = null;
+    spawn(); spawn(); ov.hidden = true; hud();
+  }
+  const lines = d => {
+    const L = [];
+    for (let a = 0; a < 4; a++) {
+      const l = [];
+      for (let b = 0; b < 4; b++) l.push(d === 'left' ? a * 4 + b : d === 'right' ? a * 4 + 3 - b : d === 'up' ? b * 4 + a : (3 - b) * 4 + a);
+      L.push(l);
+    }
+    return L;
+  };
+  const canMove = () => {
+    for (let i = 0; i < 16; i++) {
+      const t = grid[i]; if (!t) return true;
+      if ((i & 3) < 3 && grid[i + 1] && grid[i + 1].v === t.v) return true;
+      if (i < 12 && grid[i + 4] && grid[i + 4].v === t.v) return true;
+    }
+    return false;
+  };
+  function move(d){
+    if (over) return;
+    if (busy) { pending = d; return; }
+    let moved = false; const dying = [], merged = [];
+    for (const l of lines(d)) {
+      let k = 0, last = null;
+      for (let i = 0; i < 4; i++) {
+        const p = l[i], t = grid[p]; if (!t) continue;
+        grid[p] = null;
+        if (last && !last.m && last.v === t.v) {
+          last.v *= 2; last.m = true; score += last.v; t.p = last.p; dying.push(t); merged.push(last); moved = true;
+        } else {
+          const q = l[k++]; if (q !== p) moved = true; t.p = q; grid[q] = t; last = t;
+        }
+      }
+    }
+    merged.forEach(t => { t.m = false; t.el.style.zIndex = 1; });
+    if (!moved) return;
+    grid.forEach(t => { if (t) place(t); }); dying.forEach(place);
+    if (score > best) { best = score; store.set('lume-2048-best', best); }
+    hud(); busy = true;
+    timers.push(setTimeout(() => {
+      dying.forEach(t => t.el.remove());
+      merged.forEach(t => {
+        paint(t); t.el.style.zIndex = '';
+        if (!reduced()) t.el.animate([{ scale: 1 }, { scale: 1.15, offset: .5 }, { scale: 1 }], { duration: 160 });
+      });
+      spawn(); busy = false;
+      if (!canMove()) { over = true; mEl.textContent = `Sem movimentos. ${score} pontos.`; go.textContent = 'Jogar de novo'; go.dataset.m = 'new'; ov.hidden = false; }
+      else if (!won && grid.some(t => t && t.v >= 2048)) { won = true; mEl.textContent = 'Você chegou ao 2048.'; go.textContent = 'Continuar'; go.dataset.m = 'cont'; ov.hidden = false; }
+      if (pending) { const n = pending; pending = null; move(n); }
+    }, reduced() ? 10 : 130));
+  }
+  go.onclick = () => { if (go.dataset.m === 'new') reset(); else ov.hidden = true; };
+  $('[data-n]', body).onclick = reset;
+  let sx = 0, sy = 0;
+  board.addEventListener('pointerdown', e => { sx = e.clientX; sy = e.clientY; });
+  board.addEventListener('pointerup', e => {
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;
+    move(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+  });
+  reset();
+  const map = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' };
+  return { key(e){ if (!map[e.key]) return false; move(map[e.key]); return true; }, destroy(){ timers.forEach(clearTimeout); } };
+}
+
+/* ---------- jogo: Memória ---------- */
+function buildMemory(body){
+  body.innerHTML = `<div class="game">
+    <div class="hud"><div><span>Jogadas</span><b data-m>0</b></div><div><span>Pares</span><b data-p>0/8</b></div><button class="btn" data-n type="button">Embaralhar</button></div>
+    <div class="stage"><div class="mem" data-board></div><div class="ov" hidden><p data-t></p><button class="btn pri" data-go type="button">Jogar de novo</button></div></div></div>`;
+  const SY = ['▲', '●', '■', '◆', '★', '✚', '☾', '♥'];
+  const SC = { '▲': '#ef4444', '●': '#2563eb', '■': '#16a34a', '◆': '#9333ea', '★': '#f59e0b', '✚': '#ec4899', '☾': '#4f46e5', '♥': '#e11d48' };
+  const board = $('[data-board]', body), ov = $('.ov', body);
+  let deck, open, lock, moves, found, timer = 0;
+  const hud = () => { $('[data-m]', body).textContent = moves; $('[data-p]', body).textContent = found + '/8'; };
+  function reset(){
+    clearTimeout(timer);
+    deck = [...SY, ...SY];
+    for (let i = deck.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [deck[i], deck[j]] = [deck[j], deck[i]]; }
+    open = []; lock = false; moves = 0; found = 0; ov.hidden = true; hud();
+    board.innerHTML = deck.map((s, i) => `<button class="card" data-i="${i}" style="--sc:${SC[s]}" aria-label="Carta ${i + 1}, virada"><span class="in"><span class="f back"></span><span class="f front">${s}</span></span></button>`).join('');
+  }
+  const setFlip = (c, on) => {
+    c.classList.toggle('flip', on);
+    c.setAttribute('aria-label', `Carta ${+c.dataset.i + 1}, ${on ? deck[c.dataset.i] : 'virada'}`);
+  };
+  board.addEventListener('click', e => {
+    const c = e.target.closest('.card');
+    if (!c || lock || c.classList.contains('flip')) return;
+    setFlip(c, true); open.push(c);
+    if (open.length < 2) return;
+    moves++;
+    const [a, b] = open;
+    if (deck[a.dataset.i] === deck[b.dataset.i]) {
+      a.classList.add('done'); b.classList.add('done'); found++; open = []; hud();
+      if (found === 8) { $('[data-t]', body).textContent = `Todos os pares em ${moves} jogadas.`; ov.hidden = false; }
+    } else {
+      lock = true; hud();
+      timer = setTimeout(() => { setFlip(a, false); setFlip(b, false); open = []; lock = false; }, 750);
+    }
+  });
+  $('[data-n]', body).onclick = reset;
+  $('[data-go]', body).onclick = reset;
+  reset();
+  return { destroy(){ clearTimeout(timer); } };
+}
+
+/* ---------- jogo: Campo Minado ---------- */
+function buildMines(body){
+  body.innerHTML = `<div class="game">
+    <div class="hud"><div><span>Minas</span><b data-f>10</b></div><div><span>Tempo</span><b data-t>0</b></div>
+      <button class="btn" data-flag type="button" aria-pressed="false">Bandeira</button><button class="btn" data-n type="button">Novo</button></div>
+    <div class="stage"><div class="mines" data-b></div><div class="ov" hidden><p data-m></p><button class="btn pri" data-go type="button">Jogar de novo</button></div></div>
+    <p class="hint">Clique direito ou segure a casa para marcar bandeira.</p></div>`;
+  const R = 9, M = 10, T = R * R;
+  const NUMCOL = ['', '#2563eb', '#16a34a', '#dc2626', '#7c3aed', '#b45309', '#0d9488', '#334155', '#6b7280'];
+  const board = $('[data-b]', body), ov = $('.ov', body), mEl = $('[data-m]', body), fEl = $('[data-f]', body), tEl = $('[data-t]', body), flagBtn = $('[data-flag]', body);
+  let cells, els, started, over, flags, opened, secs, timer = null, flagMode = false, lp = false, lpT = 0;
+  const nb = i => {
+    const r = i / R | 0, c = i % R, o = [];
+    for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+      if (!dr && !dc) continue;
+      const rr = r + dr, cc = c + dc;
+      if (rr >= 0 && rr < R && cc >= 0 && cc < R) o.push(rr * R + cc);
+    }
+    return o;
+  };
+  const hud = () => { fEl.textContent = M - flags; tEl.textContent = secs; };
+  const stopTimer = () => { clearInterval(timer); timer = null; };
+  const startTimer = () => { stopTimer(); timer = setInterval(() => { secs++; tEl.textContent = secs; }, 1000); };
+  function paint(i){
+    const c = cells[i], e = els[i];
+    e.className = 'mc' + (c.o ? ' open' : '') + (c.f && !c.o ? ' flag' : '');
+    e.textContent = c.f && !c.o ? '▲' : (c.o ? (c.m ? '✱' : (c.a || '')) : '');
+    e.style.color = c.o && !c.m && c.a ? NUMCOL[c.a] : '';
+  }
+  function reset(){
+    cells = Array.from({ length: T }, () => ({ m: false, a: 0, o: false, f: false }));
+    started = false; over = false; flags = 0; opened = 0; secs = 0; stopTimer(); ov.hidden = true;
+    board.innerHTML = cells.map((_, i) => `<button class="mc" data-i="${i}" aria-label="Casa ${i + 1}"></button>`).join('');
+    els = [...board.children]; hud();
+  }
+  function plant(safe){
+    const pool = []; for (let i = 0; i < T; i++) if (i !== safe) pool.push(i);
+    for (let k = 0; k < M; k++) {
+      const j = k + (Math.random() * (pool.length - k) | 0);
+      [pool[k], pool[j]] = [pool[j], pool[k]]; cells[pool[k]].m = true;
+    }
+    cells.forEach((c, i) => { c.a = nb(i).filter(j => cells[j].m).length; });
+  }
+  function lose(i){
+    over = true; stopTimer();
+    cells.forEach((c, j) => { if (c.m) { c.o = true; paint(j); } });
+    els[i].classList.add('boom');
+    mEl.textContent = 'Você pisou numa mina.'; ov.hidden = false;
+  }
+  function openCell(i){
+    const c = cells[i]; if (c.o || c.f || over) return;
+    if (!started) { started = true; plant(i); startTimer(); }
+    if (c.m) { lose(i); return; }
+    const st = [i];
+    while (st.length) {
+      const j = st.pop(), cj = cells[j];
+      if (cj.o || cj.f) continue;
+      cj.o = true; opened++; paint(j);
+      if (!cj.a) nb(j).forEach(k => { if (!cells[k].o && !cells[k].f) st.push(k); });
+    }
+    if (opened === T - M) { over = true; stopTimer(); mEl.textContent = `Campo limpo em ${secs}s.`; ov.hidden = false; }
+  }
+  function toggleFlag(i){
+    const c = cells[i]; if (c.o || over) return;
+    c.f = !c.f; flags += c.f ? 1 : -1; paint(i); hud();
+  }
+  board.addEventListener('pointerdown', e => {
+    lp = false; clearTimeout(lpT);
+    const b = e.target.closest('.mc');
+    if (b && e.pointerType === 'touch') lpT = setTimeout(() => { lp = true; toggleFlag(+b.dataset.i); }, 420);
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => board.addEventListener(t, () => clearTimeout(lpT)));
+  board.addEventListener('click', e => {
+    const b = e.target.closest('.mc'); if (!b) return;
+    if (lp) { lp = false; return; }
+    const i = +b.dataset.i;
+    if (flagMode) toggleFlag(i); else openCell(i);
+  });
+  board.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    const b = e.target.closest('.mc'); if (!b || lp) return;
+    toggleFlag(+b.dataset.i);
+  });
+  flagBtn.onclick = () => { flagMode = !flagMode; flagBtn.setAttribute('aria-pressed', String(flagMode)); };
+  $('[data-n]', body).onclick = reset;
+  $('[data-go]', body).onclick = reset;
+  reset();
+  return {
+    pause: stopTimer,
+    resume(){ if (started && !over && !timer) startTimer(); },
+    destroy: stopTimer
+  };
+}
+
+/* ---------- Calculadora ---------- */
+function buildCalc(body){
+  const defs = [['C', 'clr', 'op'], ['⌫', 'bs', 'op'], ['%', 'pct', 'op'], ['÷', '/', 'op'], ['7'], ['8'], ['9'], ['×', '*', 'op'], ['4'], ['5'], ['6'], ['−', '-', 'op'], ['1'], ['2'], ['3'], ['+', '+', 'op'], ['±', 'neg', 'op'], ['0'], [',', '.'], ['=', '=', 'eq']];
+  body.innerHTML = `<div class="calc"><div class="disp"><small data-h></small><b data-d>0</b></div>
+    <div class="keys">${defs.map(d => `<button type="button" data-k="${d[1] || d[0]}" class="${d[2] || ''}">${d[0]}</button>`).join('')}</div></div>`;
+  const dEl = $('[data-d]', body), hEl = $('[data-h]', body);
+  const SYM = { '+': '+', '-': '−', '*': '×', '/': '÷' };
+  let cur = '0', acc = null, op = null, fresh = true;
+  const raw = n => isFinite(n) ? String(+n.toPrecision(12)) : 'Erro';
+  const calc = (a, b, o) => o === '+' ? a + b : o === '-' ? a - b : o === '*' ? a * b : (b === 0 ? NaN : a / b);
+  const show = () => { dEl.textContent = cur.replace('.', ','); };
+  function press(k){
+    if (cur === 'Erro' && k !== 'clr') { cur = '0'; acc = null; op = null; fresh = true; hEl.textContent = ''; }
+    if (/^[0-9]$/.test(k)) {
+      if (fresh) { cur = k; fresh = false; } else if (cur.replace(/[-.]/g, '').length < 14) cur = cur === '0' ? k : cur + k;
+    } else if (k === '.') {
+      if (fresh) { cur = '0.'; fresh = false; } else if (!cur.includes('.')) cur += '.';
+    } else if (SYM[k]) {
+      if (op && !fresh) { acc = calc(acc, +cur, op); cur = raw(acc); } else acc = +cur;
+      op = k; fresh = true; hEl.textContent = `${cur.replace('.', ',')} ${SYM[k]}`;
+    } else if (k === '=') {
+      if (op) { const r = calc(acc, +cur, op); hEl.textContent = `${raw(acc).replace('.', ',')} ${SYM[op]} ${cur.replace('.', ',')} =`; cur = raw(r); acc = null; op = null; fresh = true; }
+    } else if (k === 'clr') { cur = '0'; acc = null; op = null; fresh = true; hEl.textContent = ''; }
+    else if (k === 'bs') { if (!fresh) cur = cur.length > 1 && !(cur.length === 2 && cur[0] === '-') ? cur.slice(0, -1) : '0'; }
+    else if (k === 'neg') { if (cur !== '0' && cur !== 'Erro') cur = cur[0] === '-' ? cur.slice(1) : '-' + cur; }
+    else if (k === 'pct') { cur = raw(+cur / 100); fresh = true; }
+    show();
+  }
+  body.querySelector('.keys').addEventListener('click', e => { const b = e.target.closest('button'); if (b) press(b.dataset.k); });
+  return {
+    key(e){
+      const k = e.key;
+      if (/^[0-9]$/.test(k)) press(k);
+      else if (k === '.' || k === ',') press('.');
+      else if (k === '+' || k === '-' || k === '*' || k === '/') press(k);
+      else if (k === 'Enter' || k === '=') press('=');
+      else if (k === 'Backspace') press('bs');
+      else if (k === 'Escape') press('clr');
+      else return false;
+      return true;
+    }
+  };
+}
+
+/* ---------- Notas ---------- */
+function buildNotes(body){
+  const sample = 'Lista de testes da ISO\n- inicia em UEFI e em BIOS\n- zram ativo (swapon --show)\n- Calamares instala em disco virtual\n- medir a RAM ociosa com free -m';
+  body.innerHTML = `<div class="notes"><textarea aria-label="Bloco de notas" spellcheck="false"></textarea><small data-st>Salvo</small></div>`;
+  const ta = $('textarea', body), st = $('[data-st]', body);
+  ta.value = store.get('lume-notes') ?? sample;
+  let t = 0;
+  ta.addEventListener('input', () => {
+    st.textContent = 'Salvando…'; clearTimeout(t);
+    t = setTimeout(() => { store.set('lume-notes', ta.value); st.textContent = 'Salvo'; }, 400);
+  });
+  return { destroy(){ clearTimeout(t); store.set('lume-notes', ta.value); } };
+}
+
+/* ---------- Configurações ---------- */
+function buildSettings(body){
+  const rows = [
+    { k: 'theme', t: 'Tema', d: 'Claro, escuro ou o do sistema', type: 'seg', o: [['auto', 'Sistema'], ['light', 'Claro'], ['dark', 'Escuro']] },
+    { k: 'dock', t: 'Tamanho da barra de tarefas', d: 'Pequena, média ou grande', type: 'seg', o: [['p', 'Pequena'], ['m', 'Média'], ['g', 'Grande']] },
+    { k: 'hide', t: 'Ocultar a barra de tarefas', d: 'Ela aparece quando o mouse chega na borda de baixo', type: 'sw' },
+    { k: 'desk', t: 'Ícones na área de trabalho', d: 'Desligue para escondê-los', type: 'sw' },
+    { k: 'icons', t: 'Tamanho dos ícones da área de trabalho', d: 'Pequeno, médio ou grande', type: 'seg', o: [['p', 'Pequeno'], ['m', 'Médio'], ['g', 'Grande']] },
+    { k: 'zoom', t: 'Zoom da dock', d: 'Os ícones crescem quando o mouse passa', type: 'sw' },
+    { k: 'wall', t: 'Papel de parede', d: 'Destaque troca de cena sozinho; ou escolha um fundo fixo ou sua imagem', type: 'seg', o: [['destaque', 'Destaque'], ['aurora', 'Aurora'], ['meia', 'Meia-noite'], ['claro', 'Claro'], ['custom', 'Minha imagem']] },
+    { k: 'blur', t: 'Borrão nas animações', d: 'Desligue se as animações estiverem pesadas', type: 'sw' },
+    { k: 'fps', t: 'Mostrar FPS', d: 'Medidor no canto da tela', type: 'sw' }
+  ];
+  body.innerHTML = `<div class="set">${rows.map(r => `<div class="row"><div><b>${r.t}</b><span>${r.d}</span></div>${r.type === 'seg'
+    ? `<div class="seg" role="radiogroup" aria-label="${r.t}" data-k="${r.k}">${r.o.map(o => `<button type="button" role="radio" data-v="${o[0]}">${o[1]}</button>`).join('')}</div>`
+    : `<button type="button" class="sw" role="switch" aria-label="${r.t}" data-k="${r.k}"></button>`}</div>`).join('')}
+    <div class="row"><div><b>Destaque</b><span>Troca de cena sozinho a cada 40 segundos</span></div><button type="button" class="btn" data-act="next">Próxima cena</button></div>
+    <div class="row"><div><b>Sua imagem de fundo</b><span>A imagem fica só neste navegador</span></div>
+      <div><button type="button" class="btn" data-act="pick">Escolher imagem</button><button type="button" class="btn" data-act="clear">Remover</button></div></div>
+    <input type="file" accept="image/*" hidden data-file></div>`;
+  const fileIn = $('[data-file]', body);
+  fileIn.addEventListener('change', () => { pickWall(fileIn.files[0]); fileIn.value = ''; });
+  function sync(){
+    body.querySelectorAll('.seg').forEach(g => g.querySelectorAll('button').forEach(b => b.setAttribute('aria-checked', String(settings[g.dataset.k] === b.dataset.v))));
+    body.querySelectorAll('.sw').forEach(b => b.setAttribute('aria-checked', String(!!settings[b.dataset.k])));
+  }
+  body.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.act === 'pick') { fileIn.click(); return; }
+    if (b.dataset.act === 'clear') { clearWall(); return; }
+    if (b.dataset.act === 'next') { spotNext(); return; }
+    const g = b.closest('[data-k]'); if (!g) return;
+    const k = g.dataset.k;
+    if (k === 'wall' && b.dataset.v === 'custom' && !wallImg) { fileIn.click(); return; }
+    settings[k] = b.classList.contains('sw') ? !settings[k] : b.dataset.v;
+    saveSettings(); applySettings();
+  });
+  sync();
+  return { sync };
+}
+
+/* ---------- Sobre ---------- */
+function buildAbout(body){
+  body.innerHTML = `<div class="about">
+    <h2>LumeOS</h2>
+    <p>Prévia visual no navegador de uma distro Debian leve com cara de Windows 11. A ISO real usa XFCE com uma dock e uma barra no topo; aqui você vê o desktop, janelas com animação, jogos e alguns apps.</p>
+    <dl><dt>Base</dt><dd>Debian 13, XFCE</dd><dt>Memória</dt><dd>zram com zstd</dd><dt>Tema</dt><dd>Fluent, fonte Inter</dd><dt>Programas Windows</dt><dd>Bottles e Proton</dd></dl>
+    <p>Se algo estiver pesado, abra Configurações, ligue o medidor de FPS e desligue o borrão para comparar. Na ISO real o compositor do xfwm4 fica ligado (a dock e os widgets precisam dele), mas o XFCE não tem a animação de minimizar mostrada aqui.</p></div>`;
+  return {};
+}
+
+/* ---------- início ---------- */
+applySettings();
+function warmUp(){
+  if (reduced() || !fx.blur) return;
+  const d = document.createElement('div');
+  d.style.cssText = 'position:fixed;left:0;top:0;width:320px;height:240px;background:var(--win);border-radius:12px;opacity:.02;pointer-events:none;z-index:5;will-change:transform,opacity,filter';
+  document.body.append(d);
+  d.animate([
+    { transform: 'translate3d(0,0,0) scale(1)', opacity: .02, filter: 'blur(0px)' },
+    { transform: 'translate3d(60px,60px,0) scale(.4)', opacity: .02, filter: `blur(${fxBlurPx}px)` }
+  ], { duration: 400 }).onfinish = () => d.remove();
+}
+warmUp();
+if (desktop.clientWidth >= 900) openApp('about');
+openApp('snake');
+setTimeout(() => toast('Minimize uma janela para ver a animação. Em Configurações você liga o medidor de FPS.', 7000), 700);
+})();
+</script>
